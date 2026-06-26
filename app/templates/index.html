@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if not devices %}
+<div class="text-center py-20 text-gray-400">
+  <p class="text-lg font-medium">No devices yet.</p>
+  <a href="/devices/add" class="mt-3 inline-block text-blue-600 hover:underline text-sm">
+    Add your first device
+  </a>
+</div>
+{% else %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for device in devices %}
+    {% include "partials/device_card.html" %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

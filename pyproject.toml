@@ -1,0 +1,22 @@
+[project]
+name = "home-auto"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.115",
+    "sqlmodel>=0.0.21",
+    "tinytuya>=1.15",
+    "apscheduler>=3.10",
+    "python-dotenv>=1.0",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "aiomqtt>=2.0",
+    "pyhon>=0.15",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

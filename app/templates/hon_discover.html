@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-xl font-semibold text-gray-800 mb-1">Haier hOn Appliances</h1>
+  <p class="text-sm text-gray-500 mb-6">Appliances linked to your hOn account.</p>
+
+  {% if not hon_available %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800 space-y-3">
+    <p class="font-medium">hOn credentials not configured.</p>
+    <p>Create a <code class="bg-amber-100 px-1 rounded">.env</code> file in the project root:</p>
+    <pre class="bg-amber-100 rounded-lg p-3 font-mono text-xs">HON_EMAIL=your@email.com
+HON_PASSWORD=yourpassword</pre>
+    <p>Then restart the app. Use the same credentials as your Haier hOn mobile app.</p>
+  </div>
+
+  {% elif not appliances %}
+  <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 text-sm text-gray-600">
+    <p>No appliances found on your hOn account. Make sure your A/C is set up in the hOn app first.</p>
+  </div>
+
+  {% else %}
+  <div class="flex flex-col gap-3">
+    {% for a in appliances %}
+
+    {% if a._registered %}
+    <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between opacity-60">
+      <div>
+        <span class="font-medium text-gray-700">{{ a.name }}</span>
+        <span class="ml-2 text-xs text-gray-400">{{ a.model }}</span>
+      </div>
+      <span class="text-xs text-gray-400">Already added</span>
+    </div>
+
+    {% else %}
+    <div id="hon-{{ loop.index }}" class="bg-white border border-gray-200 rounded-xl p-4">
+      <div class="flex items-start justify-between gap-4 mb-3">
+        <div class="flex-1">
+          <input
+            type="text"
+            name="name"
+            value="{{ a.name }}"
+            class="font-medium text-gray-800 border-b border-transparent hover:border-gray-300 focus:border-blue-400 focus:outline-none w-full bg-transparent"
+          >
+          <p class="text-xs text-gray-400 mt-1">{{ a.type }} — {{ a.model }}</p>
+        </div>
+        <select
+          name="type"
+          class="border border-gray-200 rounded-lg px-2 py-1 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
+        >
+          <option value="ac" {% if a.type == "AC" %}selected{% endif %}>A/C</option>
+          <option value="plug">Plug</option>
+        </select>
+      </div>
+      <div class="flex justify-end">
+        <button
+          hx-post="/devices/hon/{{ a.uid }}"
+          hx-include="#hon-{{ loop.index }}"
+          hx-target="#hon-{{ loop.index }}"
+          hx-swap="outerHTML"
+          class="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+        >
+          Add to dashboard
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

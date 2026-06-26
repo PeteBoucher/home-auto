@@ -1,0 +1,106 @@
+{% set next_state = "false" if device.state else "true" %}
+<div id="device-{{ device.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="font-semibold text-gray-800">{{ device.name }}</h2>
+      <span class="inline-block mt-1 bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full capitalize">
+        {{ device.type.value }}
+      </span>
+    </div>
+    <span class="flex items-center gap-1.5 text-xs {% if device.online %}text-green-600{% else %}text-gray-400{% endif %}">
+      <span class="w-2 h-2 rounded-full {% if device.online %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
+      {{ "Online" if device.online else "Offline" }}
+    </span>
+  </div>
+
+  <button
+    hx-post="/devices/{{ device.id }}/command"
+    hx-vals='{"state": "{{ next_state }}"}'
+    hx-target="#device-{{ device.id }}"
+    hx-swap="outerHTML"
+    {% if not device.online %}disabled{% endif %}
+    class="w-full py-2.5 px-4 rounded-lg font-medium text-sm transition-colors
+      {% if device.state %}bg-green-500 hover:bg-green-600 text-white
+      {% else %}bg-gray-200 hover:bg-gray-300 text-gray-600{% endif %}
+      {% if not device.online %}opacity-40 cursor-not-allowed{% endif %}"
+  >
+    {{ "On" if device.state else "Off" }}
+  </button>
+
+  {% if device.type.value == "bulb" and device.online and device.state %}
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400 w-6">Low</span>
+    <input
+      type="range"
+      name="brightness"
+      min="10" max="100"
+      value="{{ device.brightness or 50 }}"
+      hx-post="/devices/{{ device.id }}/command"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 accent-yellow-400 cursor-pointer"
+    >
+    <span class="text-xs text-gray-400 w-8 text-right">High</span>
+  </div>
+  {% endif %}
+
+  {% if device.type.value == "ac" and device.online and device.state %}
+  {% set temp = device.temperature or 22 %}
+  <div class="flex items-center justify-between gap-2">
+    <button
+      hx-post="/devices/{{ device.id }}/command"
+      hx-vals='{"temperature": "{{ [temp - 1, 16] | max }}"}'
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-medium transition-colors"
+    >−</button>
+    <span class="text-2xl font-semibold text-gray-800">{{ temp }}°C</span>
+    <button
+      hx-post="/devices/{{ device.id }}/command"
+      hx-vals='{"temperature": "{{ [temp + 1, 30] | min }}"}'
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-lg font-medium transition-colors"
+    >+</button>
+  </div>
+  <div class="flex gap-2">
+    <select
+      name="ac_mode"
+      hx-post="/devices/{{ device.id }}/command"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+    >
+      {% for m in ["auto", "cool", "heat", "dry", "fan"] %}
+      <option value="{{ m }}" {% if device.ac_mode == m %}selected{% endif %}>{{ m | capitalize }}</option>
+      {% endfor %}
+    </select>
+    <select
+      name="fan_speed"
+      hx-post="/devices/{{ device.id }}/command"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+    >
+      {% for label, val in [("Auto", 0), ("Low", 1), ("Med", 2), ("High", 3), ("Turbo", 4)] %}
+      <option value="{{ val }}" {% if device.fan_speed == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
+  <button
+    hx-post="/devices/{{ device.id }}/delete"
+    hx-target="#device-{{ device.id }}"
+    hx-swap="outerHTML"
+    hx-confirm="Remove {{ device.name }}?"
+    class="text-xs text-gray-300 hover:text-red-400 text-right transition-colors"
+  >
+    Remove
+  </button>
+
+</div>
