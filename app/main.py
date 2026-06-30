@@ -52,6 +52,9 @@ async def dashboard(request: Request):
                     device.online = state["online"]
                     device.state = state["state"]
                     device.brightness = state["brightness"]
+                    device.color_temp = state.get("color_temp")
+                    device.color_mode = state.get("color_mode", "white")
+                    device.color_rgb = state.get("color_rgb")
                     session.add(device)
 
         hon_devices = [d for d in devices if d.integration == Integration.hon]

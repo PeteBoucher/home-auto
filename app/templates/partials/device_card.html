@@ -29,6 +29,31 @@
   </button>
 
   {% if device.type.value == "bulb" and device.online and device.state %}
+
+  {% set is_colour = device.color_mode == "colour" %}
+
+  {# Mode toggle #}
+  <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+    <button
+      hx-post="/devices/{{ device.id }}/command"
+      hx-vals='{"color_mode": "white"}'
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 py-1 rounded-md text-xs font-medium transition-colors
+        {% if not is_colour %}bg-white shadow text-gray-700{% else %}text-gray-400 hover:text-gray-600{% endif %}"
+    >White</button>
+    <button
+      hx-post="/devices/{{ device.id }}/command"
+      hx-vals='{"color_mode": "colour"}'
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 py-1 rounded-md text-xs font-medium transition-colors
+        {% if is_colour %}bg-white shadow text-gray-700{% else %}text-gray-400 hover:text-gray-600{% endif %}"
+    >Colour</button>
+  </div>
+
+  {% if not is_colour %}
+  {# Brightness + color temperature — white mode only #}
   <div class="flex items-center gap-3">
     <span class="text-xs text-gray-400 w-6">Low</span>
     <input
@@ -44,6 +69,40 @@
     >
     <span class="text-xs text-gray-400 w-8 text-right">High</span>
   </div>
+  {# Color temperature #}
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400 w-6">☀️</span>
+    <input
+      type="range"
+      name="color_temp"
+      min="0" max="100"
+      value="{{ device.color_temp if device.color_temp is not none else 50 }}"
+      hx-post="/devices/{{ device.id }}/command"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      style="background: linear-gradient(to right, #ffb347, #cce0ff)"
+      class="flex-1 cursor-pointer"
+    >
+    <span class="text-xs text-gray-400 w-8 text-right">❄️</span>
+  </div>
+  {% else %}
+  {# Color picker — colour mode only #}
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400">Colour</span>
+    <input
+      type="color"
+      name="color_rgb"
+      value="{{ device.color_rgb or '#ffffff' }}"
+      hx-post="/devices/{{ device.id }}/command"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 h-9 rounded-lg cursor-pointer border border-gray-200"
+    >
+  </div>
+  {% endif %}
+
   {% endif %}
 
   {% if device.type.value == "ac" and device.online and device.state %}

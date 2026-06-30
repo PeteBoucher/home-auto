@@ -202,6 +202,12 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         command["state"] = str(form["state"]).lower() == "true"
     if "brightness" in form:
         command["brightness"] = int(form["brightness"])
+    if "color_temp" in form:
+        command["color_temp"] = int(form["color_temp"])
+    if "color_mode" in form:
+        command["color_mode"] = str(form["color_mode"])
+    if "color_rgb" in form:
+        command["color_rgb"] = str(form["color_rgb"])
 
     if device.integration == Integration.tuya:
         await tuya_client.send_command(device, command)
@@ -209,6 +215,9 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         device.online = state["online"]
         device.state = state["state"]
         device.brightness = state["brightness"]
+        device.color_temp = state.get("color_temp")
+        device.color_mode = state.get("color_mode", "white")
+        device.color_rgb = state.get("color_rgb")
         session.add(device)
         session.commit()
         session.refresh(device)

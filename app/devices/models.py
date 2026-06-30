@@ -30,4 +30,7 @@ class Device(SQLModel, table=True):
     temperature: Optional[int] = None    # A/C: target °C
     ac_mode: Optional[str] = None        # A/C: auto/cool/heat/dry/fan
     fan_speed: Optional[int] = None      # A/C: 0=auto 1–4=speeds
+    color_temp: Optional[int] = None             # bulbs: 0 (warm) – 100 (cool)
+    color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
+    color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"
     protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version
