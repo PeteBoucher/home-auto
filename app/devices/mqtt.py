@@ -78,7 +78,7 @@ async def discover_devices() -> list[dict] | None:
             async with asyncio.timeout(3):
                 async for message in client.messages:
                     data = json.loads(message.payload)
-                    return [d for d in data if d.get("type") == "EndDevice"]
+                    return [d for d in data if d.get("type") in ("EndDevice", "Router")]
             return []
     except aiomqtt.MqttError:
         return None

@@ -70,6 +70,7 @@ async def import_device(tuya_id: str, request: Request, session: SessionDep):
         ip_address=str(form.get("ip_address", data.get("ip", ""))),
         type=DeviceType(str(form["type"])),
         integration=Integration.tuya,
+        protocol_version=float(data.get("version", 3.3)),
     )
     session.add(device)
     session.commit()

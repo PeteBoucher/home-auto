@@ -30,3 +30,4 @@ class Device(SQLModel, table=True):
     temperature: Optional[int] = None    # A/C: target °C
     ac_mode: Optional[str] = None        # A/C: auto/cool/heat/dry/fan
     fan_speed: Optional[int] = None      # A/C: 0=auto 1–4=speeds
+    protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version

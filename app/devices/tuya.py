@@ -11,7 +11,7 @@ _TIMEOUT = 5
 def _make_device(device: Device) -> tinytuya.OutletDevice:
     cls = tinytuya.BulbDevice if device.type == DeviceType.bulb else tinytuya.OutletDevice
     d = cls(device.device_id, device.ip_address, device.local_key, connection_timeout=_TIMEOUT)
-    d.set_version(3.3)
+    d.set_version(device.protocol_version)
     return d
 
 

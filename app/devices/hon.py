@@ -23,7 +23,7 @@ async def start() -> None:
         return
     try:
         from pyhon import Hon
-        _hon_ctx = Hon(email=email, password=password)
+        _hon_ctx = Hon(email=email, password=password, country="ES", language="es")
         _hon = await _hon_ctx.__aenter__()
         log.info("hOn connected — %d appliance(s) found", len(_hon.appliances))
     except Exception as e:
