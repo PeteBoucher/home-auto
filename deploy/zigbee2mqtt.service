@@ -1,0 +1,15 @@
+[Unit]
+Description=Zigbee2MQTT
+After=network.target mosquitto.service
+
+[Service]
+User={{USER}}
+WorkingDirectory=/opt/zigbee2mqtt
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=5
+# Give the USB dongle time to enumerate on boot
+ExecStartPre=/bin/sleep 3
+
+[Install]
+WantedBy=multi-user.target

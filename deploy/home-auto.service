@@ -1,0 +1,14 @@
+[Unit]
+Description=Home Automation Web App
+After=network.target mosquitto.service
+
+[Service]
+User={{USER}}
+WorkingDirectory=/opt/home-auto
+EnvironmentFile=/opt/home-auto/.env
+ExecStart=/opt/home-auto/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

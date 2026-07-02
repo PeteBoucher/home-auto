@@ -1,0 +1,17 @@
+homeassistant:
+  enabled: false
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://localhost:1883
+serial:
+  # Sonoff Zigbee 3.0 USB Dongle Plus is usually ttyUSB0 on Pi.
+  # Run: ls /dev/ttyUSB* /dev/ttyACM* to confirm after plugging in.
+  port: /dev/ttyUSB0
+  adapter: zstack
+frontend:
+  enabled: true
+  port: 8080
+version: 5
+devices:
+  '0x842e14fffee55c1e':
+    friendly_name: 'living_room_socket'
