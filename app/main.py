@@ -1,7 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Annotated
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -13,6 +15,7 @@ from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.api import devices as devices_router
+from app.services.automations import check_weather
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -22,7 +25,11 @@ async def lifespan(app: FastAPI):
     init_db()
     await hon_client.start()
     mqtt_task = asyncio.create_task(mqtt_client.run())
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
+    scheduler.start()
     yield
+    scheduler.shutdown()
     mqtt_task.cancel()
     try:
         await mqtt_task
