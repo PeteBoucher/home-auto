@@ -190,6 +190,37 @@ async def add_device(request: Request, session: SessionDep):
     return RedirectResponse(url="/", status_code=303)
 
 
+@router.get("/{device_id}/name", response_class=HTMLResponse)
+async def device_name(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "partials/device_name.html", {"device": device})
+
+
+@router.get("/{device_id}/rename-form", response_class=HTMLResponse)
+async def rename_form(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "partials/rename_form.html", {"device": device})
+
+
+@router.post("/{device_id}/rename", response_class=HTMLResponse)
+async def rename_device(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    name = str(form.get("name", "")).strip()
+    if name:
+        device.name = name
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+    return templates.TemplateResponse(request, "partials/device_name.html", {"device": device})
+
+
 @router.post("/{device_id}/command", response_class=HTMLResponse)
 async def send_command(device_id: int, request: Request, session: SessionDep):
     device = session.get(Device, device_id)

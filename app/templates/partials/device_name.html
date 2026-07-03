@@ -1,0 +1,15 @@
+<div id="device-{{ device.id }}-name" class="flex items-center gap-2 min-w-0">
+  <div class="min-w-0">
+    <h2 class="font-semibold text-gray-800 truncate">{{ device.name }}</h2>
+    <span class="inline-block mt-1 bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full capitalize">
+      {{ device.type.value }}
+    </span>
+  </div>
+  <button
+    hx-get="/devices/{{ device.id }}/rename-form"
+    hx-target="#device-{{ device.id }}-name"
+    hx-swap="outerHTML"
+    class="text-xs text-gray-300 hover:text-gray-500 flex-shrink-0 transition-colors"
+    title="Rename"
+  >edit</button>
+</div>
