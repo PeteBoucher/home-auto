@@ -19,7 +19,7 @@ sudo apt-get update -qq
 
 info "Installing system dependencies..."
 sudo apt-get install -y -qq \
-    git curl mosquitto mosquitto-clients \
+    git curl mosquitto mosquitto-clients nginx \
     python3-pip python3-venv python3-dev \
     libffi-dev libssl-dev
 
@@ -92,6 +92,16 @@ for f in .env tinytuya.json devices.json; do
         echo "    [!] Created placeholder $APP_DIR/$f — replace with real content"
     fi
 done
+
+# ── nginx reverse proxy ───────────────────────────────────────────────────────
+info "Configuring nginx..."
+sudo cp "$(dirname "$0")/nginx-home-auto" /etc/nginx/sites-available/home-auto
+sudo ln -sf /etc/nginx/sites-available/home-auto /etc/nginx/sites-enabled/home-auto
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl enable nginx
+sudo systemctl reload nginx
+check "nginx reverse proxy on port 80"
 
 # ── Systemd services ──────────────────────────────────────────────────────────
 info "Installing systemd services..."
