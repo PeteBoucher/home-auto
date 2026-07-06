@@ -57,10 +57,13 @@ async def _flash_loop(bulbs: list[Device]) -> None:
     deadline = time.monotonic() + _DURATION
     try:
         while _active and time.monotonic() < deadline:
+            t = time.monotonic()
             await _set_all(bulbs, state=True, color_rgb=_RED)
-            await asyncio.sleep(_FLASH_ON)
+            await asyncio.sleep(max(0, _FLASH_ON - (time.monotonic() - t)))
+
+            t = time.monotonic()
             await _set_all(bulbs, state=False)
-            await asyncio.sleep(_FLASH_OFF)
+            await asyncio.sleep(max(0, _FLASH_OFF - (time.monotonic() - t)))
     except asyncio.CancelledError:
         pass
     finally:
