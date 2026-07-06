@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import Device, DeviceType, Integration, Schedule  # noqa: F401 — Schedule must be imported so SQLModel.metadata.create_all creates its table
 
 
 @pytest.fixture(name="engine")
@@ -76,6 +76,7 @@ def client_fixture(engine):
 
     with (
         patch("app.main.init_db"),
+        patch("app.main.init_schedules"),
         patch("app.devices.hon.start", new=AsyncMock()),
         patch("app.devices.hon.stop", new=AsyncMock()),
         patch("app.devices.mqtt.run", new=AsyncMock()),

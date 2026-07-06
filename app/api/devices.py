@@ -8,10 +8,11 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import Device, DeviceType, Integration, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
+from app.services.scheduler import apply_schedule, remove_schedule
 
 _Z2M_PREFIX = "zigbee2mqtt"
 
@@ -32,6 +33,10 @@ def _infer_type(data: dict) -> str:
     if category in _BULB_CATEGORIES or any(w in name for w in ("bulb", "light", "lamp")):
         return "bulb"
     return "plug"
+
+def _get_schedule(device_id: int, session: Session) -> Schedule | None:
+    return session.exec(select(Schedule).where(Schedule.device_id == device_id)).first()
+
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 templates = Jinja2Templates(directory="app/templates")
@@ -291,7 +296,44 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         session.commit()
         session.refresh(device)
 
-    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device})
+    schedule = _get_schedule(device.id, session)
+    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule})
+
+
+@router.post("/{device_id}/schedule", response_class=HTMLResponse)
+async def upsert_schedule(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    schedule = _get_schedule(device_id, session)
+    if not schedule:
+        schedule = Schedule(device_id=device_id, on_time="00:00", off_time="00:00")
+        session.add(schedule)
+    schedule.on_time = str(form["on_time"])
+    schedule.off_time = str(form["off_time"])
+    schedule.enabled = "enabled" in form
+    session.commit()
+    session.refresh(schedule)
+    apply_schedule(schedule)
+    return templates.TemplateResponse(
+        request, "partials/device_schedule.html", {"device": device, "schedule": schedule}
+    )
+
+
+@router.post("/{device_id}/schedule/delete", response_class=HTMLResponse)
+async def delete_schedule(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    schedule = _get_schedule(device_id, session)
+    if schedule:
+        remove_schedule(schedule.id)
+        session.delete(schedule)
+        session.commit()
+    return templates.TemplateResponse(
+        request, "partials/device_schedule.html", {"device": device, "schedule": None}
+    )
 
 
 @router.post("/{device_id}/delete")

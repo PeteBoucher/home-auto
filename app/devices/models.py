@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, Relationship
 
 
 class DeviceType(str, Enum):
@@ -34,3 +34,11 @@ class Device(SQLModel, table=True):
     color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
     color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"
     protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version
+
+
+class Schedule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", unique=True)
+    on_time: str   # "HH:MM" local time
+    off_time: str  # "HH:MM" local time
+    enabled: bool = Field(default=True)
