@@ -54,16 +54,19 @@ async def _restore(bulbs: list[Device]) -> None:
 
 async def _flash_loop(bulbs: list[Device]) -> None:
     global _active
+    # Set colour mode once up front so the loop only toggles state (1 DPS write per flash,
+    # symmetric on both phases — eliminates the timing asymmetry from 3-write vs 1-write commands)
+    await _set_all(bulbs, state=True, color_rgb=_RED)
     deadline = time.monotonic() + _DURATION
     try:
         while _active and time.monotonic() < deadline:
             t = time.monotonic()
-            await _set_all(bulbs, state=True, color_rgb=_RED)
-            await asyncio.sleep(max(0, _FLASH_ON - (time.monotonic() - t)))
-
-            t = time.monotonic()
             await _set_all(bulbs, state=False)
             await asyncio.sleep(max(0, _FLASH_OFF - (time.monotonic() - t)))
+
+            t = time.monotonic()
+            await _set_all(bulbs, state=True)
+            await asyncio.sleep(max(0, _FLASH_ON - (time.monotonic() - t)))
     except asyncio.CancelledError:
         pass
     finally:
