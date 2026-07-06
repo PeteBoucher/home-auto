@@ -14,6 +14,7 @@ from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.api import devices as devices_router
+from app.api import alerts as alerts_router
 from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="home-auto", lifespan=lifespan)
 app.include_router(devices_router.router)
+app.include_router(alerts_router.router)
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None
