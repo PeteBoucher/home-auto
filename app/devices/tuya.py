@@ -1,5 +1,7 @@
 import asyncio
 import colorsys
+import threading
+import time
 from typing import Any
 
 import tinytuya
@@ -84,6 +86,40 @@ def _send_command_sync(device: Device, command: dict[str, Any]) -> None:
             d.set_value(24, _rgb_hex_to_hsv_hex(command["color_rgb"]))
     except Exception:
         pass
+
+
+def flash_sync(
+    device: Device,
+    stop: threading.Event,
+    colour_hsv: str,
+    on_s: float,
+    off_s: float,
+    duration: float,
+) -> None:
+    """Flash a bulb using a persistent LAN socket. Runs in a worker thread.
+
+    Keeps the TCP connection open between commands so each toggle is
+    milliseconds rather than a full reconnect (~200-400 ms).
+    """
+    d = _make_device(device)
+    d.set_socketPersistent(True)
+    try:
+        d.set_value(21, "colour")
+        d.set_value(24, colour_hsv)
+        deadline = time.monotonic() + duration
+        while not stop.is_set() and time.monotonic() < deadline:
+            t = time.monotonic()
+            d.turn_off()
+            stop.wait(max(0, off_s - (time.monotonic() - t)))
+            if stop.is_set():
+                break
+            t = time.monotonic()
+            d.turn_on()
+            stop.wait(max(0, on_s - (time.monotonic() - t)))
+    except Exception:
+        pass
+    finally:
+        d.set_socketPersistent(False)
 
 
 async def get_state(device: Device) -> dict[str, Any]:

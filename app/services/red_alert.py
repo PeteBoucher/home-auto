@@ -1,12 +1,13 @@
 import asyncio
 import logging
-import time
+import threading
 
 from sqlmodel import Session, select
 
 from app.db import engine
 from app.devices.models import Device, DeviceType, Integration
 from app.devices import tuya as tuya_client
+from app.devices.tuya import _rgb_hex_to_hsv_hex
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ _DURATION = 60
 
 _active = False
 _task: asyncio.Task | None = None
+_stop = threading.Event()
 _saved: dict[int, dict] = {}
 
 
@@ -28,10 +30,6 @@ def _tuya_bulbs() -> list[Device]:
                 Device.type == DeviceType.bulb,
             )
         ).all())
-
-
-async def _set_all(bulbs: list[Device], **command) -> None:
-    await asyncio.gather(*[tuya_client.send_command(b, command) for b in bulbs])
 
 
 async def _restore(bulbs: list[Device]) -> None:
@@ -52,30 +50,24 @@ async def _restore(bulbs: list[Device]) -> None:
                 await tuya_client.send_command(bulb, {"color_temp": snap["color_temp"]})
 
 
-async def _flash_loop(bulbs: list[Device]) -> None:
+async def _run(bulbs: list[Device]) -> None:
     global _active
-    # Set colour mode once up front so the loop only toggles state (1 DPS write per flash,
-    # symmetric on both phases — eliminates the timing asymmetry from 3-write vs 1-write commands)
-    await _set_all(bulbs, state=True, color_rgb=_RED)
-    deadline = time.monotonic() + _DURATION
+    red_hsv = _rgb_hex_to_hsv_hex(_RED)
     try:
-        while _active and time.monotonic() < deadline:
-            t = time.monotonic()
-            await _set_all(bulbs, state=False)
-            await asyncio.sleep(max(0, _FLASH_OFF - (time.monotonic() - t)))
-
-            t = time.monotonic()
-            await _set_all(bulbs, state=True)
-            await asyncio.sleep(max(0, _FLASH_ON - (time.monotonic() - t)))
-    except asyncio.CancelledError:
-        pass
+        # Each bulb gets its own thread with a persistent socket.
+        await asyncio.gather(*[
+            asyncio.to_thread(
+                tuya_client.flash_sync, b, _stop, red_hsv, _FLASH_ON, _FLASH_OFF, _DURATION
+            )
+            for b in bulbs
+        ])
     finally:
         _active = False
         await _restore(bulbs)
 
 
 async def activate() -> None:
-    global _active, _task
+    global _active, _task, _stop
     if _active:
         return
     bulbs = _tuya_bulbs()
@@ -88,15 +80,15 @@ async def activate() -> None:
             "color_temp": bulb.color_temp,
         }
     _active = True
-    _task = asyncio.create_task(_flash_loop(bulbs))
+    _stop = threading.Event()
+    _task = asyncio.create_task(_run(bulbs))
 
 
 async def deactivate() -> None:
-    global _active, _task
-    _active = False
+    global _task
+    _stop.set()
     if _task and not _task.done():
-        _task.cancel()
-        await asyncio.gather(_task, return_exceptions=True)
+        await _task
     _task = None
 
 
