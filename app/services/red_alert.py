@@ -11,8 +11,8 @@ from app.devices import tuya as tuya_client
 log = logging.getLogger(__name__)
 
 _RED = "#ff0000"
-_FLASH_ON = 0.5
-_FLASH_OFF = 0.5
+_FLASH_ON = 0.8
+_FLASH_OFF = 0.8
 _DURATION = 60
 
 _active = False
