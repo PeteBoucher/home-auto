@@ -12,8 +12,8 @@ from app.devices.tuya import _rgb_hex_to_hsv_hex
 log = logging.getLogger(__name__)
 
 _RED = "#ff0000"
-_FLASH_ON = 0.8
-_FLASH_OFF = 0.8
+_FLASH_ON = 1.5
+_FLASH_OFF = 1.5
 _DURATION = 60
 
 _active = False

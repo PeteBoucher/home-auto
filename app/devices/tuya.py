@@ -104,6 +104,7 @@ def flash_sync(
     d = _make_device(device)
     d.set_socketPersistent(True)
     try:
+        d.turn_on()  # must be on before setting mode — DPS writes are ignored in standby
         d.set_value(21, "colour")
         d.set_value(24, colour_hsv)
         deadline = time.monotonic() + duration
