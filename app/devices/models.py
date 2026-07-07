@@ -4,6 +4,11 @@ from typing import Optional
 from sqlmodel import Field, SQLModel, Relationship
 
 
+class TriggerType(str, Enum):
+    time = "time"
+    device_state = "device_state"
+
+
 class DeviceType(str, Enum):
     plug = "plug"
     bulb = "bulb"
@@ -42,3 +47,22 @@ class Schedule(SQLModel, table=True):
     on_time: str   # "HH:MM" local time
     off_time: str  # "HH:MM" local time
     enabled: bool = Field(default=True)
+
+
+class Automation(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    enabled: bool = Field(default=True)
+
+    # Trigger
+    trigger_type: TriggerType
+    trigger_time: Optional[str] = None                                       # "HH:MM" — time triggers
+    trigger_device_id: Optional[int] = Field(default=None, foreign_key="device.id")  # state triggers
+    trigger_field: Optional[str] = None                                      # "state", "brightness", "temperature"
+    trigger_operator: Optional[str] = None                                   # "eq", "ne", "gt", "lt"
+    trigger_value: Optional[str] = None
+
+    # Action
+    action_device_id: int = Field(foreign_key="device.id")
+    action_type: str   # "set_state_on", "set_state_off", "set_brightness", "set_color_temp", "set_color_rgb"
+    action_value: Optional[str] = None

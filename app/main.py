@@ -15,8 +15,10 @@ from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.api import devices as devices_router
 from app.api import alerts as alerts_router
+from app.api import automations as automations_router
 from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
+from app.services.automation_engine import load_time_automations
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -29,6 +31,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.start()
     init_schedules()
+    load_time_automations()
     yield
     scheduler.shutdown()
     mqtt_task.cancel()
@@ -42,6 +45,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="home-auto", lifespan=lifespan)
 app.include_router(devices_router.router)
 app.include_router(alerts_router.router)
+app.include_router(automations_router.router)
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None

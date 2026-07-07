@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Automations</h1>
+    <button hx-get="/automations/new" hx-target="#automation-form" hx-swap="innerHTML"
+            class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+      + Add Rule
+    </button>
+  </div>
+
+  <div id="automation-form" class="mb-4"></div>
+
+  <div id="automation-list" class="space-y-3">
+    {% for auto in automations %}
+      {% include "partials/automation_row.html" %}
+    {% else %}
+      <p class="text-gray-400 text-sm">No rules yet — add one above.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+function updateTriggerFields() {
+  const type = document.getElementById('trigger_type')?.value;
+  if (!type) return;
+  document.getElementById('time-fields').style.display = type === 'time' ? '' : 'none';
+  document.getElementById('state-fields').style.display = type === 'device_state' ? '' : 'none';
+}
+
+function updateTriggerValueInput() {
+  const field = document.getElementById('trigger_field')?.value;
+  if (!field) return;
+  const container = document.getElementById('trigger-value-container');
+  const currentValue = container.querySelector('[name="trigger_value"]')?.value || 'true';
+  const cls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white';
+  if (field === 'state' || field === 'online') {
+    container.innerHTML = `<select name="trigger_value" class="${cls}">
+      <option value="true" ${currentValue === 'true' ? 'selected' : ''}>On / Online</option>
+      <option value="false" ${currentValue === 'false' ? 'selected' : ''}>Off / Offline</option>
+    </select>`;
+  } else {
+    const numVal = (currentValue === 'true' || currentValue === 'false') ? '' : currentValue;
+    container.innerHTML = `<input type="number" name="trigger_value" value="${numVal}"
+      class="${cls}" placeholder="Value">`;
+  }
+}
+
+function updateActionFields() {
+  const type = document.getElementById('action_type')?.value;
+  if (!type) return;
+  const needsValue = ['set_brightness', 'set_color_temp', 'set_color_rgb'];
+  document.getElementById('action-value-field').style.display = needsValue.includes(type) ? '' : 'none';
+  const valueInput = document.getElementById('action_value');
+  valueInput.type = type === 'set_color_rgb' ? 'color' : 'number';
+}
+
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+  if (evt.detail.target.id === 'automation-form') {
+    updateTriggerFields();
+    updateTriggerValueInput();
+    updateActionFields();
+  }
+});
+</script>
+{% endblock %}

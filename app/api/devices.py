@@ -14,6 +14,7 @@ from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.services.scheduler import apply_schedule, remove_schedule
+from app.services.automation_engine import check_state_triggers
 
 _Z2M_PREFIX = "zigbee2mqtt"
 
@@ -56,6 +57,7 @@ async def device_grid(request: Request, session: SessionDep):
             *[tuya_client.get_state(d) for d in tuya_devices],
             return_exceptions=True,
         )
+        valid: list[tuple[int, dict]] = []
         for device, state in zip(tuya_devices, states):
             if isinstance(state, dict):
                 device.online = state["online"]
@@ -65,8 +67,10 @@ async def device_grid(request: Request, session: SessionDep):
                 device.color_mode = state.get("color_mode", "white")
                 device.color_rgb = state.get("color_rgb")
                 session.add(device)
+                valid.append((device.id, state))
         session.commit()
         devices = list(session.exec(select(Device)).all())
+        await asyncio.gather(*[check_state_triggers(did, s) for did, s in valid], return_exceptions=True)
     schedules = {s.device_id: s for s in session.exec(select(Schedule)).all()}
     return templates.TemplateResponse(
         request, "partials/device_grid.html", {"devices": devices, "schedules": schedules}
