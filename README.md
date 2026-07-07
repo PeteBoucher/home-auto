@@ -78,8 +78,8 @@ sudo journalctl -u home-auto -f
 Create `/opt/home-auto/.env`:
 
 ```env
-LAT=36.44          # location for rain detection
-LON=-5.27
+LAT=<your latitude>
+LON=<your longitude>
 ```
 
 ### Updating
