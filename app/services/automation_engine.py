@@ -85,7 +85,6 @@ async def check_state_triggers(device_id: int, state: dict) -> None:
         met = _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state)
         was_met = _last_eval.get(auto.id, False)
         _last_eval[auto.id] = met
-        log.warning("Automation %r: device=%d met=%s was_met=%s state=%s", auto.name, device_id, met, was_met, state)
         if met and not was_met:
             try:
                 await _fire(auto)
