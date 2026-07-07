@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
@@ -94,4 +95,8 @@ async def dashboard(request: Request, session: SessionDep):
         s.device_id: s
         for s in session.exec(select(Schedule)).all()
     }
-    return templates.TemplateResponse(request, "index.html", {"devices": devices, "schedules": schedules})
+    return templates.TemplateResponse(request, "index.html", {
+        "devices": devices,
+        "schedules": schedules,
+        "roachcam_url": os.getenv("ROACHCAM_URL", "").rstrip("/"),
+    })
