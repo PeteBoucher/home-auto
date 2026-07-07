@@ -62,9 +62,13 @@ async def run() -> None:
         try:
             async with aiomqtt.Client(HOST, PORT) as client:
                 await client.subscribe(f"{PREFIX}/#")
-                log.info("MQTT connected")
+                log.warning("MQTT connected")
                 await _listen(client)
-        except aiomqtt.MqttError:
+        except aiomqtt.MqttError as exc:
+            log.warning("MQTT error, reconnecting in 5s: %s", exc)
+            await asyncio.sleep(5)
+        except Exception as exc:
+            log.error("MQTT listener crashed, reconnecting in 5s: %s", exc, exc_info=True)
             await asyncio.sleep(5)
 
 

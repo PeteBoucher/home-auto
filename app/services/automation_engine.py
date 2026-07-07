@@ -35,8 +35,9 @@ async def _fire(automation: Automation) -> None:
         return
     command = _build_command(automation.action_type, automation.action_value)
     if not command:
+        log.warning("Automation %r: empty command for action_type=%r", automation.name, automation.action_type)
         return
-    log.info("Automation %r firing: %s → %s", automation.name, device.name, command)
+    log.warning("Automation %r firing: %s → %s", automation.name, device.name, command)
     if device.integration == Integration.tuya:
         await tuya_client.send_command(device, command)
     elif device.integration == Integration.zigbee2mqtt:
@@ -84,8 +85,12 @@ async def check_state_triggers(device_id: int, state: dict) -> None:
         met = _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state)
         was_met = _last_eval.get(auto.id, False)
         _last_eval[auto.id] = met
+        log.warning("Automation %r: device=%d met=%s was_met=%s state=%s", auto.name, device_id, met, was_met, state)
         if met and not was_met:
-            asyncio.create_task(_fire(auto))
+            try:
+                await _fire(auto)
+            except Exception as exc:
+                log.error("Automation %r fire error: %s", auto.name, exc, exc_info=True)
 
 
 async def _fire_by_id(automation_id: int) -> None:
