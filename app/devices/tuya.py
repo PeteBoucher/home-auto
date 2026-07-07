@@ -103,10 +103,9 @@ def flash_sync(
     """
     d = _make_device(device)
     d.set_socketPersistent(True)
+    on_payload = {20: True, 21: "colour", 24: colour_hsv}
     try:
-        d.turn_on()  # must be on before setting mode — DPS writes are ignored in standby
-        d.set_value(21, "colour")
-        d.set_value(24, colour_hsv)
+        d.set_multiple_values(on_payload)  # turn on + set colour mode in one packet
         deadline = time.monotonic() + duration
         while not stop.is_set() and time.monotonic() < deadline:
             t = time.monotonic()
@@ -115,7 +114,7 @@ def flash_sync(
             if stop.is_set():
                 break
             t = time.monotonic()
-            d.turn_on()
+            d.set_multiple_values(on_payload)  # re-assert colour mode on every flash
             stop.wait(max(0, on_s - (time.monotonic() - t)))
     except Exception:
         pass
