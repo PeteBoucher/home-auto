@@ -13,22 +13,26 @@ A local-first home automation dashboard running on a Raspberry Pi. Controls smar
 ## Features
 
 ### Dashboard
+
 - Live device cards with on/off toggle, brightness, colour temperature, and RGB colour picker for bulbs
 - Inline device rename
 - Auto-refreshes every 30 seconds so physical switch use (power-cycling a bulb) is reflected within half a minute
 
 ### Evening timer
+
 Each device card has a **Timer** section. Set an on-time and off-time; the schedule is stored in SQLite and loaded into APScheduler on startup so it survives restarts. The enabled checkbox lets you suspend a schedule without deleting it.
 
 ### Weather automation
+
 Polls [Open-Meteo](https://open-meteo.com/) every 10 minutes for the configured location. When it's raining (WMO codes 51–99), all Tuya bulbs switch to pale blue (`#add8e6`). When rain clears, they restore to their previous state (mode, colour, brightness, and colour temperature). Configure location via `.env`:
 
 ```
-LAT=36.44
-LON=-5.27
+LAT=<your latitude>
+LON=<your longitude>
 ```
 
 ### Red Alert
+
 A RED ALERT button in the nav flashes all RGB bulbs bright red at ~1 Hz using a persistent LAN socket per bulb (no reconnect overhead per flash). Stand Down restores the pre-alert state. Auto-cancels after 60 seconds. The dashboard auto-poll is suppressed during the alert so cards don't flicker.
 
 ## Stack
