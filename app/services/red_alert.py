@@ -72,13 +72,7 @@ async def activate() -> None:
         return
     bulbs = _tuya_bulbs()
     for bulb in bulbs:
-        _saved[bulb.id] = {
-            "state": bulb.state,
-            "color_mode": bulb.color_mode,
-            "color_rgb": bulb.color_rgb,
-            "brightness": bulb.brightness,
-            "color_temp": bulb.color_temp,
-        }
+        _saved[bulb.id] = await tuya_client.live_snapshot(bulb)
     _active = True
     _stop = threading.Event()
     _task = asyncio.create_task(_run(bulbs))

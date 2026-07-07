@@ -29,13 +29,7 @@ def _tuya_bulbs() -> list[Device]:
 
 async def _activate_rain():
     for bulb in _tuya_bulbs():
-        _saved[bulb.id] = {
-            "state": bulb.state,
-            "color_mode": bulb.color_mode,
-            "color_rgb": bulb.color_rgb,
-            "brightness": bulb.brightness,
-            "color_temp": bulb.color_temp,
-        }
+        _saved[bulb.id] = await tuya_client.live_snapshot(bulb)
         await tuya_client.send_command(bulb, {"state": True})
         await tuya_client.send_command(bulb, {"color_rgb": _RAIN_COLOUR})
 

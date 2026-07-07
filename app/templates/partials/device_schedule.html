@@ -22,7 +22,7 @@
       class="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
     >
     <label class="flex items-center gap-1 text-xs text-gray-500 ml-1 cursor-pointer">
-      <input type="checkbox" name="enabled" {% if not schedule or schedule.enabled %}checked{% endif %} class="accent-green-500">
+      <input type="checkbox" name="enabled" value="1" {% if not schedule or schedule.enabled %}checked{% endif %} class="accent-green-500">
       enabled
     </label>
     <button

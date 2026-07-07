@@ -127,5 +127,29 @@ async def get_state(device: Device) -> dict[str, Any]:
     return await asyncio.to_thread(_get_state_sync, device)
 
 
+async def live_snapshot(device: Device) -> dict[str, Any]:
+    """Return current live state for pre-automation snapshots.
+
+    Falls back to cached DB values if the bulb is offline (switch off),
+    so automations restore to the last known state rather than guessing.
+    """
+    state = await get_state(device)
+    if state.get("online"):
+        return {
+            "state": state["state"],
+            "color_mode": state.get("color_mode", device.color_mode),
+            "color_rgb": state.get("color_rgb"),
+            "brightness": state.get("brightness"),
+            "color_temp": state.get("color_temp"),
+        }
+    return {
+        "state": device.state,
+        "color_mode": device.color_mode,
+        "color_rgb": device.color_rgb,
+        "brightness": device.brightness,
+        "color_temp": device.color_temp,
+    }
+
+
 async def send_command(device: Device, command: dict[str, Any]) -> None:
     await asyncio.to_thread(_send_command_sync, device, command)
