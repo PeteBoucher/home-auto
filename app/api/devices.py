@@ -48,9 +48,10 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @router.get("/grid", response_class=HTMLResponse)
 async def device_grid(request: Request, session: SessionDep):
+    from app.services import red_alert
     devices = list(session.exec(select(Device)).all())
     tuya_devices = [d for d in devices if d.integration == Integration.tuya]
-    if tuya_devices:
+    if tuya_devices and not red_alert.is_active():
         states = await asyncio.gather(
             *[tuya_client.get_state(d) for d in tuya_devices],
             return_exceptions=True,

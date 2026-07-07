@@ -48,6 +48,17 @@ async def _restore(bulbs: list[Device]) -> None:
                 await tuya_client.send_command(bulb, {"brightness": snap["brightness"]})
             if snap["color_temp"] is not None:
                 await tuya_client.send_command(bulb, {"color_temp": snap["color_temp"]})
+        # Write snapshot back to DB so the dashboard card is correct immediately
+        with Session(engine) as session:
+            db_bulb = session.get(Device, bulb.id)
+            if db_bulb:
+                db_bulb.state = snap["state"]
+                db_bulb.color_mode = snap["color_mode"] or "white"
+                db_bulb.color_rgb = snap["color_rgb"]
+                db_bulb.brightness = snap["brightness"]
+                db_bulb.color_temp = snap["color_temp"]
+                session.add(db_bulb)
+                session.commit()
 
 
 async def _run(bulbs: list[Device]) -> None:
