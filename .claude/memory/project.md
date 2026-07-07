@@ -25,10 +25,14 @@ A Python-based web app to unify control and automation of home devices currently
 - **APScheduler** — time-based and state-triggered automation jobs
 - **SQLite + SQLModel** — device registry, automation rules, event log
 - **Jinja2 + HTMX** — server-rendered UI with live partial updates
+- **Zigbee2MQTT + Mosquitto** — MQTT broker for Zigbee devices
 
 ## Phased Plan
 
-- **Phase 1** *(current)* — Tuya device discovery, registration, and toggle/brightness control via dashboard
-- **Phase 2** — Haier A/C integration and control card
-- **Phase 3** — Automation rule engine across all devices
-- **Phase 4** — Event history log and timeline view
+| Phase | Description | Status |
+| --- | --- | --- |
+| 1 | Tuya device discovery, registration, toggle/brightness/RGB control via dashboard | ✅ Done |
+| 2 | hOn / Haier A/C card (power, mode, temp, fan speed) | ⚠️ Code complete — blocked on Pi by `pyhOn` version `country` kwarg mismatch |
+| 3 | Zigbee2MQTT integration (Mosquitto broker, Zigbee bulb + socket adapter) | ✅ Done |
+| 4 | Automation engine — time cron + device state triggers → actions (cross-device rules) | 🔄 Partial — evening timer and weather automation built; no general rule engine yet |
+| 5 | Event history log and timeline view | ❌ Not started |

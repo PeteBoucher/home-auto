@@ -15,7 +15,7 @@ PORT = 1883
 PREFIX = "zigbee2mqtt"
 
 
-def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> None:
+def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tuple[int, dict] | None:
     with Session(engine) as session:
         device = session.exec(
             select(Device).where(
@@ -24,7 +24,7 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> None
             )
         ).first()
         if not device:
-            return
+            return None
         device.online = online
         if "state" in payload:
             device.state = str(payload["state"]).upper() == "ON"
@@ -32,9 +32,11 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> None
             device.brightness = round(int(payload["brightness"]) / 2.54)
         session.add(device)
         session.commit()
+        return device.id, {"state": device.state, "brightness": device.brightness, "online": device.online}
 
 
 async def _listen(client: aiomqtt.Client) -> None:
+    from app.services.automation_engine import check_state_triggers  # deferred to avoid circular import
     async for message in client.messages:
         topic = str(message.topic)
         try:
@@ -46,9 +48,13 @@ async def _listen(client: aiomqtt.Client) -> None:
             continue
         friendly_name = parts[1]
         if len(parts) == 3 and parts[2] == "availability":
-            _apply_state(friendly_name, {}, online=payload.get("state") == "online")
+            result = _apply_state(friendly_name, {}, online=payload.get("state") == "online")
         elif len(parts) == 2:
-            _apply_state(friendly_name, payload)
+            result = _apply_state(friendly_name, payload)
+        else:
+            continue
+        if result:
+            await check_state_triggers(*result)
 
 
 async def run() -> None:
@@ -56,9 +62,13 @@ async def run() -> None:
         try:
             async with aiomqtt.Client(HOST, PORT) as client:
                 await client.subscribe(f"{PREFIX}/#")
-                log.info("MQTT connected")
+                log.warning("MQTT connected")
                 await _listen(client)
-        except aiomqtt.MqttError:
+        except aiomqtt.MqttError as exc:
+            log.warning("MQTT error, reconnecting in 5s: %s", exc)
+            await asyncio.sleep(5)
+        except Exception as exc:
+            log.error("MQTT listener crashed, reconnecting in 5s: %s", exc, exc_info=True)
             await asyncio.sleep(5)
 
 

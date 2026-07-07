@@ -1,0 +1,25 @@
+{% if active %}
+<div id="red-alert-btn">
+  <button
+    hx-post="/red-alert/cancel"
+    hx-target="#red-alert-btn"
+    hx-swap="outerHTML"
+    class="animate-pulse bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
+  >
+    <i class="bi bi-exclamation-octagon-fill"></i>
+    STAND DOWN
+  </button>
+</div>
+{% else %}
+<div id="red-alert-btn">
+  <button
+    hx-post="/red-alert"
+    hx-target="#red-alert-btn"
+    hx-swap="outerHTML"
+    class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+  >
+    <i class="bi bi-exclamation-octagon-fill"></i>
+    RED ALERT
+  </button>
+</div>
+{% endif %}

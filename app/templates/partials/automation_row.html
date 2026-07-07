@@ -1,0 +1,44 @@
+{% set field_labels = {"state": "state", "brightness": "brightness", "temperature": "temperature (°C)", "online": "online"} %}
+{% set op_labels = {"eq": "=", "ne": "≠", "gt": ">", "lt": "<"} %}
+{% set tdev = devices_by_id.get(auto.trigger_device_id) %}
+{% set adev = devices_by_id.get(auto.action_device_id) %}
+<div id="automation-{{ auto.id }}" class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-start gap-3">
+  <div class="flex-1 min-w-0">
+    <p class="font-medium text-gray-800">{{ auto.name }}</p>
+    <p class="text-xs text-gray-500 mt-0.5">
+      {% if auto.trigger_type == 'time' %}
+        Every day at {{ auto.trigger_time }}
+      {% else %}
+        When <span class="font-medium">{{ tdev.name if tdev else 'unknown device' }}</span>
+        {{ field_labels.get(auto.trigger_field, auto.trigger_field) }}
+        {{ op_labels.get(auto.trigger_operator, auto.trigger_operator) }}
+        {% if auto.trigger_value in ('true', 'false') %}
+          {{ 'on' if auto.trigger_value == 'true' else 'off' }}
+        {% else %}
+          {{ auto.trigger_value }}
+        {% endif %}
+      {% endif %}
+      →
+      {% if auto.action_type == 'set_state_on' %}Turn on <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span>
+      {% elif auto.action_type == 'set_state_off' %}Turn off <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span>
+      {% elif auto.action_type == 'set_brightness' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> brightness to {{ auto.action_value }}%
+      {% elif auto.action_type == 'set_color_temp' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> colour temp to {{ auto.action_value }}
+      {% elif auto.action_type == 'set_color_rgb' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> colour to {{ auto.action_value }}
+      {% endif %}
+    </p>
+  </div>
+  <div class="flex items-center gap-3 flex-shrink-0">
+    <form hx-post="/automations/{{ auto.id }}/toggle" hx-target="#automation-{{ auto.id }}" hx-swap="outerHTML">
+      <button type="submit"
+              class="text-xs font-medium px-2 py-1 rounded {{ 'bg-green-100 text-green-700' if auto.enabled else 'bg-gray-100 text-gray-400' }}">
+        {{ 'On' if auto.enabled else 'Off' }}
+      </button>
+    </form>
+    <button hx-get="/automations/{{ auto.id }}/edit" hx-target="#automation-form" hx-swap="innerHTML"
+            class="text-xs text-gray-400 hover:text-gray-600">Edit</button>
+    <form hx-post="/automations/{{ auto.id }}/delete" hx-target="#automation-{{ auto.id }}" hx-swap="outerHTML"
+          hx-confirm="Delete this rule?">
+      <button type="submit" class="text-xs text-red-400 hover:text-red-600">Delete</button>
+    </form>
+  </div>
+</div>

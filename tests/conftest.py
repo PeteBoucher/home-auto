@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import Automation, Device, DeviceType, Integration, Schedule  # noqa: F401 — all models imported so SQLModel.metadata.create_all creates their tables
 
 
 @pytest.fixture(name="engine")
@@ -31,7 +31,7 @@ def tuya_bulb_fixture(session):
         name="Test Bulb",
         device_id="dev_bulb_001",
         local_key="secretkey",
-        ip_address="192.168.1.99",
+        ip_address="192.168.x.x",
         type=DeviceType.bulb,
         integration=Integration.tuya,
         protocol_version=3.5,
@@ -76,6 +76,8 @@ def client_fixture(engine):
 
     with (
         patch("app.main.init_db"),
+        patch("app.main.init_schedules"),
+        patch("app.main.load_time_automations"),
         patch("app.devices.hon.start", new=AsyncMock()),
         patch("app.devices.hon.stop", new=AsyncMock()),
         patch("app.devices.mqtt.run", new=AsyncMock()),

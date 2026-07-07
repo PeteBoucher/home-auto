@@ -1,5 +1,7 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
@@ -8,11 +10,16 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session, init_db
-from app.devices.models import Device, Integration
+from app.devices.models import Device, Integration, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.api import devices as devices_router
+from app.api import alerts as alerts_router
+from app.api import automations as automations_router
+from app.services.automations import check_weather
+from app.services.scheduler import scheduler, init_schedules
+from app.services.automation_engine import load_time_automations
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -22,7 +29,12 @@ async def lifespan(app: FastAPI):
     init_db()
     await hon_client.start()
     mqtt_task = asyncio.create_task(mqtt_client.run())
+    scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
+    scheduler.start()
+    init_schedules()
+    load_time_automations()
     yield
+    scheduler.shutdown()
     mqtt_task.cancel()
     try:
         await mqtt_task
@@ -33,6 +45,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="home-auto", lifespan=lifespan)
 app.include_router(devices_router.router)
+app.include_router(alerts_router.router)
+app.include_router(automations_router.router)
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None
@@ -77,4 +91,12 @@ async def dashboard(request: Request, session: SessionDep):
         session.commit()
         devices = list(session.exec(select(Device)).all())
 
-    return templates.TemplateResponse(request, "index.html", {"devices": devices})
+    schedules = {
+        s.device_id: s
+        for s in session.exec(select(Schedule)).all()
+    }
+    return templates.TemplateResponse(request, "index.html", {
+        "devices": devices,
+        "schedules": schedules,
+        "roachcam_url": os.getenv("ROACHCAM_URL", "").rstrip("/"),
+    })

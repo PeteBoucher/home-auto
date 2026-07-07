@@ -1,5 +1,7 @@
 import asyncio
 import colorsys
+import threading
+import time
 from typing import Any
 
 import tinytuya
@@ -86,8 +88,66 @@ def _send_command_sync(device: Device, command: dict[str, Any]) -> None:
         pass
 
 
+def flash_sync(
+    device: Device,
+    stop: threading.Event,
+    colour_hsv: str,
+    on_s: float,
+    off_s: float,
+    duration: float,
+) -> None:
+    """Flash a bulb using a persistent LAN socket. Runs in a worker thread.
+
+    Keeps the TCP connection open between commands so each toggle is
+    milliseconds rather than a full reconnect (~200-400 ms).
+    """
+    d = _make_device(device)
+    d.set_socketPersistent(True)
+    on_payload = {20: True, 21: "colour", 24: colour_hsv}
+    try:
+        d.set_multiple_values(on_payload)  # turn on + set colour mode in one packet
+        deadline = time.monotonic() + duration
+        while not stop.is_set() and time.monotonic() < deadline:
+            t = time.monotonic()
+            d.turn_off()
+            stop.wait(max(0, off_s - (time.monotonic() - t)))
+            if stop.is_set():
+                break
+            t = time.monotonic()
+            d.set_multiple_values(on_payload)  # re-assert colour mode on every flash
+            stop.wait(max(0, on_s - (time.monotonic() - t)))
+    except Exception:
+        pass
+    finally:
+        d.set_socketPersistent(False)
+
+
 async def get_state(device: Device) -> dict[str, Any]:
     return await asyncio.to_thread(_get_state_sync, device)
+
+
+async def live_snapshot(device: Device) -> dict[str, Any]:
+    """Return current live state for pre-automation snapshots.
+
+    Falls back to cached DB values if the bulb is offline (switch off),
+    so automations restore to the last known state rather than guessing.
+    """
+    state = await get_state(device)
+    if state.get("online"):
+        return {
+            "state": state["state"],
+            "color_mode": state.get("color_mode", device.color_mode),
+            "color_rgb": state.get("color_rgb"),
+            "brightness": state.get("brightness"),
+            "color_temp": state.get("color_temp"),
+        }
+    return {
+        "state": device.state,
+        "color_mode": device.color_mode,
+        "color_rgb": device.color_rgb,
+        "brightness": device.brightness,
+        "color_temp": device.color_temp,
+    }
 
 
 async def send_command(device: Device, command: dict[str, Any]) -> None:

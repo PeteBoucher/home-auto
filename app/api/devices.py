@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 from typing import Annotated
@@ -8,10 +9,12 @@ from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import Device, DeviceType, Integration, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
+from app.services.scheduler import apply_schedule, remove_schedule
+from app.services.automation_engine import check_state_triggers
 
 _Z2M_PREFIX = "zigbee2mqtt"
 
@@ -33,11 +36,45 @@ def _infer_type(data: dict) -> str:
         return "bulb"
     return "plug"
 
+def _get_schedule(device_id: int, session: Session) -> Schedule | None:
+    return session.exec(select(Schedule).where(Schedule.device_id == device_id)).first()
+
+
 router = APIRouter(prefix="/devices", tags=["devices"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+@router.get("/grid", response_class=HTMLResponse)
+async def device_grid(request: Request, session: SessionDep):
+    from app.services import red_alert
+    devices = list(session.exec(select(Device)).all())
+    tuya_devices = [d for d in devices if d.integration == Integration.tuya]
+    if tuya_devices and not red_alert.is_active():
+        states = await asyncio.gather(
+            *[tuya_client.get_state(d) for d in tuya_devices],
+            return_exceptions=True,
+        )
+        valid: list[tuple[int, dict]] = []
+        for device, state in zip(tuya_devices, states):
+            if isinstance(state, dict):
+                device.online = state["online"]
+                device.state = state["state"]
+                device.brightness = state["brightness"]
+                device.color_temp = state.get("color_temp")
+                device.color_mode = state.get("color_mode", "white")
+                device.color_rgb = state.get("color_rgb")
+                session.add(device)
+                valid.append((device.id, state))
+        session.commit()
+        devices = list(session.exec(select(Device)).all())
+        await asyncio.gather(*[check_state_triggers(did, s) for did, s in valid], return_exceptions=True)
+    schedules = {s.device_id: s for s in session.exec(select(Schedule)).all()}
+    return templates.TemplateResponse(
+        request, "partials/device_grid.html", {"devices": devices, "schedules": schedules}
+    )
 
 
 @router.get("/import", response_class=HTMLResponse)
@@ -190,6 +227,37 @@ async def add_device(request: Request, session: SessionDep):
     return RedirectResponse(url="/", status_code=303)
 
 
+@router.get("/{device_id}/name", response_class=HTMLResponse)
+async def device_name(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "partials/device_name.html", {"device": device})
+
+
+@router.get("/{device_id}/rename-form", response_class=HTMLResponse)
+async def rename_form(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "partials/rename_form.html", {"device": device})
+
+
+@router.post("/{device_id}/rename", response_class=HTMLResponse)
+async def rename_device(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    name = str(form.get("name", "")).strip()
+    if name:
+        device.name = name
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+    return templates.TemplateResponse(request, "partials/device_name.html", {"device": device})
+
+
 @router.post("/{device_id}/command", response_class=HTMLResponse)
 async def send_command(device_id: int, request: Request, session: SessionDep):
     device = session.get(Device, device_id)
@@ -260,7 +328,44 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         session.commit()
         session.refresh(device)
 
-    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device})
+    schedule = _get_schedule(device.id, session)
+    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule})
+
+
+@router.post("/{device_id}/schedule", response_class=HTMLResponse)
+async def upsert_schedule(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    schedule = _get_schedule(device_id, session)
+    if not schedule:
+        schedule = Schedule(device_id=device_id, on_time="00:00", off_time="00:00")
+        session.add(schedule)
+    schedule.on_time = str(form["on_time"])
+    schedule.off_time = str(form["off_time"])
+    schedule.enabled = form.get("enabled") == "1"
+    session.commit()
+    session.refresh(schedule)
+    apply_schedule(schedule)
+    return templates.TemplateResponse(
+        request, "partials/device_schedule.html", {"device": device, "schedule": schedule}
+    )
+
+
+@router.post("/{device_id}/schedule/delete", response_class=HTMLResponse)
+async def delete_schedule(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    schedule = _get_schedule(device_id, session)
+    if schedule:
+        remove_schedule(schedule.id)
+        session.delete(schedule)
+        session.commit()
+    return templates.TemplateResponse(
+        request, "partials/device_schedule.html", {"device": device, "schedule": None}
+    )
 
 
 @router.post("/{device_id}/delete")

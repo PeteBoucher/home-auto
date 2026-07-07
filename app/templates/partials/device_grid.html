@@ -1,0 +1,4 @@
+{% for device in devices %}
+  {% set schedule = schedules.get(device.id) %}
+  {% include "partials/device_card.html" %}
+{% endfor %}

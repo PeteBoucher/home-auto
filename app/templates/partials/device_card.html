@@ -1,14 +1,9 @@
 {% set next_state = "false" if device.state else "true" %}
 <div id="device-{{ device.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4">
 
-  <div class="flex items-center justify-between">
-    <div>
-      <h2 class="font-semibold text-gray-800">{{ device.name }}</h2>
-      <span class="inline-block mt-1 bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full capitalize">
-        {{ device.type.value }}
-      </span>
-    </div>
-    <span class="flex items-center gap-1.5 text-xs {% if device.online %}text-green-600{% else %}text-gray-400{% endif %}">
+  <div class="flex items-center justify-between gap-4">
+    {% include "partials/device_name.html" %}
+    <span class="flex items-center gap-1.5 text-xs flex-shrink-0 {% if device.online %}text-green-600{% else %}text-gray-400{% endif %}">
       <span class="w-2 h-2 rounded-full {% if device.online %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
       {{ "Online" if device.online else "Offline" }}
     </span>
@@ -151,6 +146,8 @@
     </select>
   </div>
   {% endif %}
+
+  {% include "partials/device_schedule.html" %}
 
   <button
     hx-post="/devices/{{ device.id }}/delete"

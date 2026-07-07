@@ -1,0 +1,24 @@
+<div id="device-{{ device.id }}-name">
+  <form
+    hx-post="/devices/{{ device.id }}/rename"
+    hx-target="#device-{{ device.id }}-name"
+    hx-swap="outerHTML"
+    class="flex items-center gap-2"
+  >
+    <input
+      type="text"
+      name="name"
+      value="{{ device.name }}"
+      autofocus
+      class="font-semibold text-gray-800 border-b border-blue-400 focus:outline-none bg-transparent min-w-0 w-full"
+    >
+    <button type="submit" class="text-xs text-blue-500 hover:text-blue-700 font-medium flex-shrink-0 transition-colors">Save</button>
+    <button
+      type="button"
+      hx-get="/devices/{{ device.id }}/name"
+      hx-target="#device-{{ device.id }}-name"
+      hx-swap="outerHTML"
+      class="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0 transition-colors"
+    >Cancel</button>
+  </form>
+</div>
