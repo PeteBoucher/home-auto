@@ -91,13 +91,31 @@ def _known_hostnames() -> dict[str, str]:
     return known
 
 
+async def _ping_sweep(subnet_prefix: str) -> None:
+    """Ping all hosts in /24 subnet in parallel to populate the ARP cache."""
+    procs = await asyncio.gather(*[
+        asyncio.create_subprocess_exec(
+            "ping", "-c", "1", "-W", "1", f"{subnet_prefix}.{i}",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        for i in range(1, 255)
+    ])
+    await asyncio.gather(*[p.communicate() for p in procs])
+
+
 async def scan(session: Session) -> list[dict]:
+    gateway, self_ip = await _get_gateway()
+
+    if self_ip:
+        subnet_prefix = ".".join(self_ip.split(".")[:3])
+        await _ping_sweep(subnet_prefix)
+
     proc = await asyncio.create_subprocess_exec(
         "ip", "neigh", "show",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()
-    gateway, self_ip = await _get_gateway()
     overrides = _known_hostnames()
 
     # Known home-auto devices keyed by IP
