@@ -23,8 +23,7 @@ class TestDashboard:
         assert resp.status_code == 200
 
     def test_shows_device_names(self, client, tuya_bulb, z2m_plug):
-        with patch("app.main.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_ON)):
-            resp = client.get("/")
+        resp = client.get("/")
         assert resp.status_code == 200
         assert "Test Bulb" in resp.text
         assert "Living Room Socket" in resp.text
