@@ -104,12 +104,39 @@ async def _ping_sweep(subnet_prefix: str) -> None:
     await asyncio.gather(*[p.communicate() for p in procs])
 
 
+async def _nmap_hosts(subnet: str) -> dict[str, str]:
+    """Return {ip: hostname} via nmap -sn. Returns {} if nmap is not installed."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "nmap", "-sn", subnet,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+    except FileNotFoundError:
+        return {}
+    hosts: dict[str, str] = {}
+    for line in stdout.decode().splitlines():
+        if not line.startswith("Nmap scan report for "):
+            continue
+        rest = line[len("Nmap scan report for "):]
+        if "(" in rest:
+            hostname, ip = rest.split("(", 1)
+            hosts[ip.rstrip(")")] = hostname.strip().split(".")[0]
+        else:
+            hosts[rest.strip()] = ""
+    return hosts
+
+
 async def scan(session: Session) -> list[dict]:
     gateway, self_ip = await _get_gateway()
+    subnet_prefix = ".".join(self_ip.split(".")[:3]) if self_ip else ""
 
-    if self_ip:
-        subnet_prefix = ".".join(self_ip.split(".")[:3])
-        await _ping_sweep(subnet_prefix)
+    nmap_hosts = await _nmap_hosts(f"{subnet_prefix}.0/24") if subnet_prefix else {}
+    if not nmap_hosts:
+        # nmap not installed — fall back to manual ping sweep
+        if subnet_prefix:
+            await _ping_sweep(subnet_prefix)
 
     proc = await asyncio.create_subprocess_exec(
         "ip", "neigh", "show",
@@ -149,8 +176,8 @@ async def scan(session: Session) -> list[dict]:
         ha = ha_by_ip.get(ip)
         is_gw = ip == gateway
         is_self = ip == self_ip
-        # Prefer env-derived overrides (solves mDNS), then DNS, then IP
-        label = overrides.get(ip) or (socket.gethostname() if is_self else "") or hostname or ip
+        # Priority: env overrides → nmap → self hostname → DNS → raw IP
+        label = overrides.get(ip) or nmap_hosts.get(ip) or (socket.gethostname() if is_self else "") or hostname or ip
         devices.append({
             "ip": ip,
             "mac": mac,
