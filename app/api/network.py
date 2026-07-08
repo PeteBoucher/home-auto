@@ -128,15 +128,41 @@ async def _nmap_hosts(subnet: str) -> dict[str, str]:
     return hosts
 
 
+async def _avahi_hosts() -> dict[str, str]:
+    """Return {ip: hostname} for mDNS devices via avahi-browse. Returns {} if not installed."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "avahi-browse", "--all", "--resolve", "--terminate", "--parsable",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+    except FileNotFoundError:
+        return {}
+    hosts: dict[str, str] = {}
+    for line in stdout.decode().splitlines():
+        # Resolved entry format: =;iface;IPv4;name;_service;local;hostname.local;ip;port;txt
+        if not line.startswith("="):
+            continue
+        parts = line.split(";")
+        if len(parts) < 8 or parts[2] != "IPv4":
+            continue
+        hostname = parts[6].split(".")[0]  # "Pete-iPhone-11" from "Pete-iPhone-11.local"
+        ip = parts[7]
+        if ip and hostname:
+            hosts[ip] = hostname
+    return hosts
+
+
 async def scan(session: Session) -> list[dict]:
     gateway, self_ip = await _get_gateway()
     subnet_prefix = ".".join(self_ip.split(".")[:3]) if self_ip else ""
 
-    nmap_hosts = await _nmap_hosts(f"{subnet_prefix}.0/24") if subnet_prefix else {}
-    if not nmap_hosts:
+    nmap_coro = _nmap_hosts(f"{subnet_prefix}.0/24") if subnet_prefix else asyncio.sleep(0, result={})
+    nmap_hosts, avahi = await asyncio.gather(nmap_coro, _avahi_hosts())
+    if not nmap_hosts and subnet_prefix:
         # nmap not installed — fall back to manual ping sweep
-        if subnet_prefix:
-            await _ping_sweep(subnet_prefix)
+        await _ping_sweep(subnet_prefix)
 
     proc = await asyncio.create_subprocess_exec(
         "ip", "neigh", "show",
@@ -176,8 +202,8 @@ async def scan(session: Session) -> list[dict]:
         ha = ha_by_ip.get(ip)
         is_gw = ip == gateway
         is_self = ip == self_ip
-        # Priority: env overrides → nmap → self hostname → DNS → raw IP
-        label = overrides.get(ip) or nmap_hosts.get(ip) or (socket.gethostname() if is_self else "") or hostname or ip
+        # Priority: env overrides → avahi mDNS → nmap → self hostname → DNS → raw IP
+        label = overrides.get(ip) or avahi.get(ip) or nmap_hosts.get(ip) or (socket.gethostname() if is_self else "") or hostname or ip
         devices.append({
             "ip": ip,
             "mac": mac,
