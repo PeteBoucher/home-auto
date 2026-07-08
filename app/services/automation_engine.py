@@ -3,7 +3,7 @@ import logging
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Automation, Device, Integration, TriggerType
+from app.devices.models import Automation, Device, Event, Integration, TriggerType
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 
@@ -11,6 +11,26 @@ log = logging.getLogger(__name__)
 
 _Z2M_PREFIX = "zigbee2mqtt"
 _last_eval: dict[int, bool] = {}  # automation_id → last condition result (edge detection)
+
+
+def _log(category: str, message: str) -> None:
+    with Session(engine) as session:
+        session.add(Event(category=category, message=message))
+        session.commit()
+
+
+def _describe_command(action_type: str, action_value: str | None, device_name: str) -> str:
+    if action_type == "set_state_on":
+        return f"turned on {device_name}"
+    if action_type == "set_state_off":
+        return f"turned off {device_name}"
+    if action_type == "set_brightness":
+        return f"set {device_name} brightness to {action_value}%"
+    if action_type == "set_color_temp":
+        return f"set {device_name} colour temp to {action_value}"
+    if action_type == "set_color_rgb":
+        return f"set {device_name} colour to {action_value}"
+    return f"{action_type} on {device_name}"
 
 
 def _build_command(action_type: str, action_value: str | None) -> dict:
@@ -37,7 +57,9 @@ async def _fire(automation: Automation) -> None:
     if not command:
         log.warning("Automation %r: empty command for action_type=%r", automation.name, automation.action_type)
         return
-    log.warning("Automation %r firing: %s → %s", automation.name, device.name, command)
+    description = _describe_command(automation.action_type, automation.action_value, device.name)
+    log.warning("Automation %r firing: %s", automation.name, description)
+    _log("automation", f"'{automation.name}' fired — {description}")
     if device.integration == Integration.tuya:
         await tuya_client.send_command(device, command)
     elif device.integration == Integration.zigbee2mqtt:
@@ -90,6 +112,7 @@ async def check_state_triggers(device_id: int, state: dict) -> None:
                 await _fire(auto)
             except Exception as exc:
                 log.error("Automation %r fire error: %s", auto.name, exc, exc_info=True)
+                _log("error", f"'{auto.name}' failed: {exc}")
 
 
 async def _fire_by_id(automation_id: int) -> None:

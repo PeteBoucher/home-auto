@@ -17,6 +17,7 @@ from app.devices import firetv as firetv_client
 from app.api import devices as devices_router
 from app.api import alerts as alerts_router
 from app.api import automations as automations_router
+from app.api import history as history_router
 from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
 from app.services.automation_engine import load_time_automations
@@ -49,6 +50,7 @@ app = FastAPI(title="home-auto", lifespan=lifespan)
 app.include_router(devices_router.router)
 app.include_router(alerts_router.router)
 app.include_router(automations_router.router)
+app.include_router(history_router.router)
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None

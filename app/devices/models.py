@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -70,3 +71,10 @@ class Automation(SQLModel, table=True):
     action_device_id: int = Field(foreign_key="device.id")
     action_type: str   # "set_state_on", "set_state_off", "set_brightness", "set_color_temp", "set_color_rgb"
     action_value: Optional[str] = None
+
+
+class Event(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    category: str  # "automation", "error"
+    message: str
