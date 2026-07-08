@@ -27,13 +27,13 @@ def _icon(hostname: str, ha_type: str | None, is_gateway: bool, is_self: bool) -
     if ha_type:
         return {"plug": "plug-fill", "bulb": "lightbulb-fill", "ac": "snow", "tv": "tv-fill"}.get(ha_type, "cpu")
     h = hostname.lower()
-    if any(x in h for x in ("iphone", "android", "phone")):
+    if any(x in h for x in ("iphone", "android", "phone", "samsung", "galaxy", "pixel", "oneplus", "huawei", "xiaomi", "redmi", "oppo", "nokia")):
         return "phone-fill"
     if any(x in h for x in ("ipad", "tablet")):
         return "tablet-fill"
-    if any(x in h for x in ("macbook", "laptop")):
+    if any(x in h for x in ("macbook", "laptop", "notebook")):
         return "laptop-fill"
-    if any(x in h for x in ("mac", "imac", "desktop")):
+    if any(x in h for x in ("imac", "desktop-", "workstation", "mac")):
         return "display-fill"
     if any(x in h for x in ("appletv", "firestick", "amazon", "chromecast")):
         return "tv-fill"

@@ -28,14 +28,29 @@ class TestIcon:
     def test_hostname_iphone(self):
         assert _icon("Pete-iPhone-11", None, is_gateway=False, is_self=False) == "phone-fill"
 
+    def test_hostname_samsung(self):
+        assert _icon("Samsung-Galaxy-S21", None, is_gateway=False, is_self=False) == "phone-fill"
+
+    def test_hostname_pixel(self):
+        assert _icon("pixel-7a", None, is_gateway=False, is_self=False) == "phone-fill"
+
+    def test_hostname_oneplus(self):
+        assert _icon("OnePlus-9", None, is_gateway=False, is_self=False) == "phone-fill"
+
     def test_hostname_ipad(self):
         assert _icon("iPad-3", None, is_gateway=False, is_self=False) == "tablet-fill"
 
     def test_hostname_macbook(self):
         assert _icon("MacBook-Pro-2", None, is_gateway=False, is_self=False) == "laptop-fill"
 
+    def test_hostname_laptop(self):
+        assert _icon("LAPTOP-ABC123", None, is_gateway=False, is_self=False) == "laptop-fill"
+
     def test_hostname_mac(self):
         assert _icon("Mac", None, is_gateway=False, is_self=False) == "display-fill"
+
+    def test_hostname_windows_desktop(self):
+        assert _icon("DESKTOP-XYZ123", None, is_gateway=False, is_self=False) == "display-fill"
 
     def test_hostname_firestick(self):
         assert _icon("firestick-abc123", None, is_gateway=False, is_self=False) == "tv-fill"
