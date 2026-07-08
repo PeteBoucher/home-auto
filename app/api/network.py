@@ -37,6 +37,8 @@ def _icon(hostname: str, ha_type: str | None, is_gateway: bool, is_self: bool) -
         return "display-fill"
     if any(x in h for x in ("appletv", "firestick", "amazon", "chromecast")):
         return "tv-fill"
+    if any(x in h for x in ("brw", "brn", "printer", "epson", "canon", "hp-", "xerox")):
+        return "printer-fill"
     if any(x in h for x in ("tl-", "wa8", "wa6", "extender", "repeater", "access")):
         return "router-fill"
     if any(x in h for x in ("cam", "roachcam")):

@@ -55,6 +55,9 @@ class TestIcon:
     def test_hostname_firestick(self):
         assert _icon("firestick-abc123", None, is_gateway=False, is_self=False) == "tv-fill"
 
+    def test_hostname_brother_printer(self):
+        assert _icon("BRWDC567B3A9212", None, is_gateway=False, is_self=False) == "printer-fill"
+
     def test_hostname_extender(self):
         assert _icon("TL-WA860RE", None, is_gateway=False, is_self=False) == "router-fill"
 
