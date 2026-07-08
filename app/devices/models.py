@@ -13,12 +13,14 @@ class DeviceType(str, Enum):
     plug = "plug"
     bulb = "bulb"
     ac = "ac"
+    tv = "tv"
 
 
 class Integration(str, Enum):
     tuya = "tuya"
     hon = "hon"
     zigbee2mqtt = "zigbee2mqtt"
+    firetv = "firetv"
 
 
 class Device(SQLModel, table=True):
@@ -39,6 +41,8 @@ class Device(SQLModel, table=True):
     color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
     color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"
     protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version
+    media_state: Optional[str] = None   # Fire TV: playing/paused/idle/standby/off
+    current_app: Optional[str] = None   # Fire TV: current app package name
 
 
 class Schedule(SQLModel, table=True):

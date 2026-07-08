@@ -32,15 +32,22 @@ function updateTriggerValueInput() {
   const field = document.getElementById('trigger_field')?.value;
   if (!field) return;
   const container = document.getElementById('trigger-value-container');
-  const currentValue = container.querySelector('[name="trigger_value"]')?.value || 'true';
+  const currentValue = container.querySelector('[name="trigger_value"]')?.value || '';
   const cls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white';
   if (field === 'state' || field === 'online') {
     container.innerHTML = `<select name="trigger_value" class="${cls}">
       <option value="true" ${currentValue === 'true' ? 'selected' : ''}>On / Online</option>
       <option value="false" ${currentValue === 'false' ? 'selected' : ''}>Off / Offline</option>
     </select>`;
+  } else if (field === 'media_state') {
+    const states = ['playing', 'paused', 'idle', 'standby', 'off'];
+    const opts = states.map(s => `<option value="${s}" ${currentValue === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
+    container.innerHTML = `<select name="trigger_value" class="${cls}">${opts}</select>`;
+  } else if (field === 'app_id') {
+    container.innerHTML = `<input type="text" name="trigger_value" value="${currentValue}"
+      class="${cls}" placeholder="e.g. com.netflix.ninja">`;
   } else {
-    const numVal = (currentValue === 'true' || currentValue === 'false') ? '' : currentValue;
+    const numVal = ['true', 'false'].includes(currentValue) ? '' : currentValue;
     container.innerHTML = `<input type="number" name="trigger_value" value="${numVal}"
       class="${cls}" placeholder="Value">`;
   }

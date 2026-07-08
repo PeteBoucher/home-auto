@@ -9,6 +9,22 @@
     </span>
   </div>
 
+  {% if device.type.value == "tv" %}
+  {% set ms = device.media_state or "off" %}
+  <div class="flex items-center justify-between py-1">
+    <span class="px-3 py-1.5 rounded-lg text-sm font-medium capitalize
+      {% if ms == 'playing' %}bg-green-100 text-green-700
+      {% elif ms == 'paused' %}bg-yellow-100 text-yellow-700
+      {% else %}bg-gray-100 text-gray-400{% endif %}">
+      {{ ms }}
+    </span>
+    {% if device.current_app %}
+    <span class="text-xs text-gray-400 truncate max-w-[160px]" title="{{ device.current_app }}">
+      {{ device.current_app.split('.')[-1] }}
+    </span>
+    {% endif %}
+  </div>
+  {% else %}
   <button
     hx-post="/devices/{{ device.id }}/command"
     hx-vals='{"state": "{{ next_state }}"}'
@@ -22,6 +38,7 @@
   >
     {{ "On" if device.state else "Off" }}
   </button>
+  {% endif %}
 
   {% if device.type.value == "bulb" and device.online and device.state %}
 
@@ -147,7 +164,9 @@
   </div>
   {% endif %}
 
+  {% if device.type.value != "tv" %}
   {% include "partials/device_schedule.html" %}
+  {% endif %}
 
   <button
     hx-post="/devices/{{ device.id }}/delete"

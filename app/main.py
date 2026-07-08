@@ -13,6 +13,7 @@ from app.db import get_session, init_db
 from app.devices.models import Device, Schedule
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
+from app.devices import firetv as firetv_client
 from app.api import devices as devices_router
 from app.api import alerts as alerts_router
 from app.api import automations as automations_router
@@ -28,17 +29,19 @@ async def lifespan(app: FastAPI):
     init_db()
     await hon_client.start()
     mqtt_task = asyncio.create_task(mqtt_client.run())
+    firetv_task = asyncio.create_task(firetv_client.run())
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.start()
     init_schedules()
     load_time_automations()
     yield
     scheduler.shutdown()
-    mqtt_task.cancel()
-    try:
-        await mqtt_task
-    except asyncio.CancelledError:
-        pass
+    for task in (mqtt_task, firetv_task):
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await hon_client.stop()
 
 

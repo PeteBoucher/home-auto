@@ -60,6 +60,8 @@
           <option value="brightness" {% if is_edit and auto.trigger_field == 'brightness' %}selected{% endif %}>Brightness</option>
           <option value="temperature" {% if is_edit and auto.trigger_field == 'temperature' %}selected{% endif %}>Temperature (°C)</option>
           <option value="online" {% if is_edit and auto.trigger_field == 'online' %}selected{% endif %}>Online/Offline</option>
+          <option value="media_state" {% if is_edit and auto.trigger_field == 'media_state' %}selected{% endif %}>Media state (Fire TV)</option>
+          <option value="app_id" {% if is_edit and auto.trigger_field == 'app_id' %}selected{% endif %}>App ID (Fire TV)</option>
         </select>
         <select name="trigger_operator"
                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
@@ -78,6 +80,17 @@
             <option value="true" {% if tv == 'true' %}selected{% endif %}>On / Online</option>
             <option value="false" {% if tv == 'false' %}selected{% endif %}>Off / Offline</option>
           </select>
+        {% elif tf == 'media_state' %}
+          <select name="trigger_value"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+            {% for s in ['playing', 'paused', 'idle', 'standby', 'off'] %}
+            <option value="{{ s }}" {% if tv == s %}selected{% endif %}>{{ s | capitalize }}</option>
+            {% endfor %}
+          </select>
+        {% elif tf == 'app_id' %}
+          <input type="text" name="trigger_value" value="{{ tv }}"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                 placeholder="e.g. com.netflix.ninja">
         {% else %}
           <input type="number" name="trigger_value" value="{{ tv }}"
                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
