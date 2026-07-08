@@ -1,5 +1,7 @@
 import asyncio
+import os
 import socket
+from urllib.parse import urlparse
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -73,6 +75,22 @@ async def _resolve(ip: str) -> str:
         return ""
 
 
+def _known_hostnames() -> dict[str, str]:
+    """Build IP→hostname overrides for devices mDNS can't resolve on Linux."""
+    known: dict[str, str] = {}
+
+    roachcam_url = os.getenv("ROACHCAM_URL", "").strip()
+    if roachcam_url:
+        host = urlparse(roachcam_url).hostname or ""
+        if host:
+            try:
+                ip = socket.gethostbyname(host)
+                known[ip] = host.split(".")[0]  # "roachcam" from "roachcam.local"
+            except Exception:
+                pass
+    return known
+
+
 async def scan(session: Session) -> list[dict]:
     proc = await asyncio.create_subprocess_exec(
         "ip", "neigh", "show",
@@ -80,6 +98,7 @@ async def scan(session: Session) -> list[dict]:
     )
     stdout, _ = await proc.communicate()
     gateway, self_ip = await _get_gateway()
+    overrides = _known_hostnames()
 
     # Known home-auto devices keyed by IP
     all_devices = list(session.exec(select(Device)).all())
@@ -112,7 +131,8 @@ async def scan(session: Session) -> list[dict]:
         ha = ha_by_ip.get(ip)
         is_gw = ip == gateway
         is_self = ip == self_ip
-        label = hostname or ip
+        # Prefer env-derived overrides (solves mDNS), then DNS, then IP
+        label = overrides.get(ip) or (socket.gethostname() if is_self else "") or hostname or ip
         devices.append({
             "ip": ip,
             "mac": mac,

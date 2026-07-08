@@ -1,6 +1,8 @@
 # Project guidelines for Claude
 
-@.claude/guardrails/GUARDRAILS.md
+@.claude/guardrails/dos.md
+@.claude/guardrails/donts.md
+@.claude/memory/project.md
 
 ## General
 

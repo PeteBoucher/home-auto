@@ -5,7 +5,7 @@
   {# horizontal branch line #}
   <div class="absolute top-0 left-0 right-0 h-px bg-gray-300"></div>
   <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8 pt-10">
-    {% for d in devices %}
+    {% for d in devices if not d.is_gateway %}
     <div class="flex flex-col items-center gap-1.5 relative">
       {# vertical stem up to branch line #}
       <div class="absolute -top-10 left-1/2 -translate-x-px w-px h-10 bg-gray-300"></div>
