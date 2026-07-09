@@ -40,7 +40,7 @@
   </button>
   {% endif %}
 
-  {% if device.type.value == "bulb" and device.online and device.state %}
+  {% if device.type.value == "bulb" and device.online and device.state and device.dimmable %}
 
   {% set is_colour = device.color_mode == "colour" %}
 

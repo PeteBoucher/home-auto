@@ -201,6 +201,7 @@ async def z2m_import_device(friendly_name: str, request: Request, session: Sessi
         device_id=friendly_name,
         type=DeviceType(str(form["type"])),
         integration=Integration.zigbee2mqtt,
+        dimmable=bool(form.get("dimmable")),
     )
     session.add(device)
     session.commit()
