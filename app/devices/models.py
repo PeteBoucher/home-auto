@@ -44,6 +44,10 @@ class Device(SQLModel, table=True):
     protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version
     media_state: Optional[str] = None   # Fire TV: playing/paused/idle/standby/off
     current_app: Optional[str] = None   # Fire TV: current app package name
+    power: Optional[float] = None       # plugs with monitoring: watts
+    current: Optional[float] = None     # plugs with monitoring: amps
+    voltage: Optional[float] = None     # plugs with monitoring: volts
+    energy: Optional[float] = None      # plugs with monitoring: kWh cumulative
 
 
 class Schedule(SQLModel, table=True):

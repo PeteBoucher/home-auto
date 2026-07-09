@@ -30,9 +30,21 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.state = str(payload["state"]).upper() == "ON"
         if "brightness" in payload:
             device.brightness = round(int(payload["brightness"]) / 2.54)
+        if "power" in payload:
+            device.power = round(float(payload["power"]), 1)
+        if "current" in payload:
+            device.current = round(float(payload["current"]), 2)
+        if "voltage" in payload:
+            device.voltage = round(float(payload["voltage"]), 1)
+        if "energy" in payload:
+            device.energy = round(float(payload["energy"]), 3)
         session.add(device)
         session.commit()
-        return device.id, {"state": device.state, "brightness": device.brightness, "online": device.online}
+        return device.id, {
+            "state": device.state, "brightness": device.brightness, "online": device.online,
+            "power": device.power, "current": device.current,
+            "voltage": device.voltage, "energy": device.energy,
+        }
 
 
 async def _listen(client: aiomqtt.Client) -> None:

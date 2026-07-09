@@ -164,6 +164,23 @@
   </div>
   {% endif %}
 
+  {% if device.type.value == "plug" and device.power is not none %}
+  <div class="grid grid-cols-3 gap-2 text-center border-t border-gray-100 pt-3">
+    <div>
+      <p class="text-sm font-semibold text-gray-800">{{ device.power }}W</p>
+      <p class="text-xs text-gray-400">Power</p>
+    </div>
+    <div>
+      <p class="text-sm font-semibold text-gray-800">{{ device.voltage }}V</p>
+      <p class="text-xs text-gray-400">Voltage</p>
+    </div>
+    <div>
+      <p class="text-sm font-semibold text-gray-800">{{ device.energy }}kWh</p>
+      <p class="text-xs text-gray-400">Energy</p>
+    </div>
+  </div>
+  {% endif %}
+
   {% if device.type.value != "tv" %}
   {% include "partials/device_schedule.html" %}
   {% endif %}
