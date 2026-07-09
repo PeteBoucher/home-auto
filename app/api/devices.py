@@ -384,6 +384,32 @@ async def delete_schedule(device_id: int, request: Request, session: SessionDep)
     )
 
 
+@router.get("/{device_id}/settings", response_class=HTMLResponse)
+async def device_settings_page(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "device_settings.html", {"device": device})
+
+
+@router.post("/{device_id}/settings/power_on_behavior", response_class=HTMLResponse)
+async def set_power_on_behavior(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    value = str(form["power_on_behavior"])
+    if value not in ("on", "off", "previous"):
+        raise HTTPException(status_code=400)
+    await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", {"power_on_behavior": value})
+    device.power_on_behavior = value
+    session.add(device)
+    session.commit()
+    return HTMLResponse(
+        f'<p class="text-sm text-green-600 font-medium">Saved — will restore to <strong>{value}</strong> after power cut.</p>'
+    )
+
+
 @router.post("/{device_id}/delete")
 async def delete_device(device_id: int, session: SessionDep):
     device = session.get(Device, device_id)

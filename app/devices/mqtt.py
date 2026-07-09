@@ -30,6 +30,8 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.state = str(payload["state"]).upper() == "ON"
         if "brightness" in payload:
             device.brightness = round(int(payload["brightness"]) / 2.54)
+        if "power_on_behavior" in payload:
+            device.power_on_behavior = str(payload["power_on_behavior"])
         if "power" in payload:
             device.power = round(float(payload["power"]), 1)
         if "current" in payload:

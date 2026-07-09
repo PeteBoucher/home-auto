@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <div class="flex items-center gap-3 mb-6">
+    <a href="/" class="text-gray-400 hover:text-gray-600 transition-colors">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h1 class="text-xl font-semibold text-gray-800">{{ device.name }} — Settings</h1>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-6 flex flex-col gap-6">
+
+    {% if device.power_on_behavior is not none %}
+    <div>
+      <h2 class="text-sm font-semibold text-gray-700 mb-1">Power-on behaviour</h2>
+      <p class="text-xs text-gray-400 mb-3">What this device does when mains power is restored after a cut.</p>
+      <form hx-post="/devices/{{ device.id }}/settings/power_on_behavior"
+            hx-target="#pob-result"
+            hx-swap="innerHTML"
+            class="flex items-center gap-3">
+        <select name="power_on_behavior"
+                class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+          {% for opt in [("on", "Always on"), ("off", "Always off"), ("previous", "Restore previous state")] %}
+          <option value="{{ opt[0] }}" {% if device.power_on_behavior == opt[0] %}selected{% endif %}>
+            {{ opt[1] }}
+          </option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+          Save
+        </button>
+      </form>
+      <div id="pob-result" class="mt-2 min-h-[1.5rem]"></div>
+    </div>
+    {% endif %}
+
+    {% if device.power_on_behavior is none %}
+    <p class="text-sm text-gray-400 text-center py-4">No configurable settings for this device.</p>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

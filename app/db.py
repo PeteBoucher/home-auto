@@ -11,6 +11,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN media_state TEXT",
             "ALTER TABLE device ADD COLUMN current_app TEXT",
             "ALTER TABLE device ADD COLUMN dimmable INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE device ADD COLUMN power_on_behavior TEXT",
             "ALTER TABLE device ADD COLUMN power REAL",
             "ALTER TABLE device ADD COLUMN current REAL",
             "ALTER TABLE device ADD COLUMN voltage REAL",

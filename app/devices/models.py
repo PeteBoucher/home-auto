@@ -42,7 +42,8 @@ class Device(SQLModel, table=True):
     color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
     color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"
     protocol_version: float = Field(default=3.3)  # Tuya LAN protocol version
-    dimmable: bool = Field(default=True)  # bulbs: show brightness/color controls
+    dimmable: bool = Field(default=True)          # bulbs: show brightness/color controls
+    power_on_behavior: Optional[str] = None       # zigbee plugs: on/off/previous
     media_state: Optional[str] = None   # Fire TV: playing/paused/idle/standby/off
     current_app: Optional[str] = None   # Fire TV: current app package name
     power: Optional[float] = None       # plugs with monitoring: watts

@@ -185,14 +185,24 @@
   {% include "partials/device_schedule.html" %}
   {% endif %}
 
-  <button
-    hx-post="/devices/{{ device.id }}/delete"
-    hx-target="#device-{{ device.id }}"
-    hx-swap="outerHTML"
-    hx-confirm="Remove {{ device.name }}?"
-    class="text-xs text-gray-300 hover:text-red-400 text-right transition-colors"
-  >
-    Remove
-  </button>
+  <div class="flex items-center justify-between">
+    {% if device.power_on_behavior is not none %}
+    <a href="/devices/{{ device.id }}/settings"
+       class="text-xs text-gray-300 hover:text-gray-500 transition-colors flex items-center gap-1">
+      <i class="bi bi-gear"></i> Settings
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    <button
+      hx-post="/devices/{{ device.id }}/delete"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      hx-confirm="Remove {{ device.name }}?"
+      class="text-xs text-gray-300 hover:text-red-400 transition-colors"
+    >
+      Remove
+    </button>
+  </div>
 
 </div>
