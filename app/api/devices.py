@@ -175,6 +175,21 @@ async def z2m_discover_page(request: Request, session: SessionDep):
     )
 
 
+@router.post("/z2m/permit_join", response_class=HTMLResponse)
+async def z2m_permit_join(request: Request):
+    await mqtt_client.publish(
+        f"{_Z2M_PREFIX}/bridge/request/permit_join",
+        {"value": True, "time": 120},
+    )
+    return HTMLResponse(
+        '<button disabled '
+        'class="flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-medium">'
+        '<span class="animate-pulse w-2 h-2 rounded-full bg-white inline-block"></span>'
+        'Pairing open (2 min)'
+        '</button>'
+    )
+
+
 @router.post("/z2m/{friendly_name:path}", response_class=HTMLResponse)
 async def z2m_import_device(friendly_name: str, request: Request, session: SessionDep):
     existing = session.exec(select(Device).where(Device.device_id == friendly_name)).first()
