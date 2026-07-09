@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.api.network import _icon
+from app.api.network import _icon, zigbee_devices
 
 
 # ---------------------------------------------------------------------------
@@ -80,31 +80,44 @@ _FAKE_DEVICES = [
      "is_gateway": True, "is_self": False, "ha_name": None, "ha_type": None, "icon": "router-fill"},
     {"ip": "192.168.x.x", "mac": "11:22:33:44:55:66", "hostname": "homeauto",
      "is_gateway": False, "is_self": True, "ha_name": None, "ha_type": None, "icon": "cpu-fill"},
-    {"ip": "192.168.x.x", "mac": "aa:bb:cc:00:11:22", "hostname": "Living Room Lamp",
-     "is_gateway": False, "is_self": False, "ha_name": "Living Room Lamp", "ha_type": "bulb", "icon": "lightbulb-fill"},
+]
+
+_FAKE_ZIGBEE = [
+    {"name": "Living Room Lamp", "address": "0xaabbccddeeff0011", "type": "bulb",
+     "online": True, "icon": "lightbulb-fill"},
 ]
 
 
 class TestNetworkRoutes:
     def test_network_page_returns_200(self, client):
-        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)):
+        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)), \
+             patch("app.api.network.zigbee_devices", return_value=_FAKE_ZIGBEE):
             resp = client.get("/network")
         assert resp.status_code == 200
         assert "Network Map" in resp.text
 
     def test_network_page_shows_devices(self, client):
-        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)):
+        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)), \
+             patch("app.api.network.zigbee_devices", return_value=_FAKE_ZIGBEE):
             resp = client.get("/network")
         assert "homeauto" in resp.text
         assert "Living Room Lamp" in resp.text
 
+    def test_network_page_shows_zigbee_section(self, client):
+        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)), \
+             patch("app.api.network.zigbee_devices", return_value=_FAKE_ZIGBEE):
+            resp = client.get("/network")
+        assert "Zigbee mesh" in resp.text
+
     def test_network_scan_partial_returns_200(self, client):
-        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)):
+        with patch("app.api.network.scan", new=AsyncMock(return_value=_FAKE_DEVICES)), \
+             patch("app.api.network.zigbee_devices", return_value=_FAKE_ZIGBEE):
             resp = client.get("/network/scan")
         assert resp.status_code == 200
 
     def test_network_page_empty_scan(self, client):
-        with patch("app.api.network.scan", new=AsyncMock(return_value=[])):
+        with patch("app.api.network.scan", new=AsyncMock(return_value=[])), \
+             patch("app.api.network.zigbee_devices", return_value=[]):
             resp = client.get("/network")
         assert resp.status_code == 200
         assert "No devices found" in resp.text

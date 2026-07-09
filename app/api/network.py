@@ -224,13 +224,30 @@ async def scan(session: Session) -> list[dict]:
     return devices
 
 
+def zigbee_devices(session: Session) -> list[dict]:
+    rows = session.exec(select(Device).where(Device.integration == Integration.zigbee2mqtt)).all()
+    icon_map = {"plug": "plug-fill", "bulb": "lightbulb-fill", "ac": "snow", "tv": "tv-fill"}
+    return [
+        {
+            "name": d.name,
+            "address": d.device_id,
+            "type": d.type.value,
+            "online": d.online,
+            "icon": icon_map.get(d.type.value, "cpu"),
+        }
+        for d in rows
+    ]
+
+
 @router.get("/network", response_class=HTMLResponse)
 async def network_page(request: Request, session: SessionDep):
     devices = await scan(session)
-    return templates.TemplateResponse(request, "network.html", {"devices": devices})
+    zigbee = zigbee_devices(session)
+    return templates.TemplateResponse(request, "network.html", {"devices": devices, "zigbee": zigbee})
 
 
 @router.get("/network/scan", response_class=HTMLResponse)
 async def network_scan(request: Request, session: SessionDep):
     devices = await scan(session)
-    return templates.TemplateResponse(request, "partials/network_devices.html", {"devices": devices})
+    zigbee = zigbee_devices(session)
+    return templates.TemplateResponse(request, "partials/network_devices.html", {"devices": devices, "zigbee": zigbee})

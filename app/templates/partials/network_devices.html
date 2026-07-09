@@ -24,3 +24,33 @@
   </div>
 </div>
 {% endif %}
+
+{% if zigbee %}
+<div class="mt-8">
+  <div class="flex items-center gap-3 mb-4">
+    <div class="h-px flex-1 bg-gray-200"></div>
+    <span class="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
+      <i class="bi bi-diagram-3"></i> Zigbee mesh
+    </span>
+    <div class="h-px flex-1 bg-gray-200"></div>
+  </div>
+  <div class="relative">
+    <div class="absolute top-0 left-0 right-0 h-px bg-purple-200"></div>
+    <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-8 pt-10">
+      {% for d in zigbee %}
+      <div class="flex flex-col items-center gap-1.5 relative">
+        <div class="absolute -top-10 left-1/2 -translate-x-px w-px h-10 bg-purple-200"></div>
+        <div class="w-14 h-14 rounded-full border-2 border-purple-300 bg-purple-50 flex items-center justify-center relative">
+          <i class="bi bi-{{ d.icon }} text-2xl text-purple-600"></i>
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white
+            {% if d.online %}bg-green-400{% else %}bg-gray-300{% endif %}"></span>
+        </div>
+        <p class="text-xs font-medium text-center text-gray-700 leading-tight max-w-[80px] truncate"
+           title="{{ d.name }}">{{ d.name }}</p>
+        <p class="text-xs text-gray-400 font-mono truncate max-w-[80px]" title="{{ d.address }}">{{ d.address[-6:] }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
