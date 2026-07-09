@@ -50,28 +50,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @router.get("/grid", response_class=HTMLResponse)
 async def device_grid(request: Request, session: SessionDep):
-    from app.services import red_alert
     devices = list(session.exec(select(Device)).all())
-    tuya_devices = [d for d in devices if d.integration == Integration.tuya]
-    if tuya_devices and not red_alert.is_active():
-        states = await asyncio.gather(
-            *[tuya_client.get_state(d) for d in tuya_devices],
-            return_exceptions=True,
-        )
-        valid: list[tuple[int, dict]] = []
-        for device, state in zip(tuya_devices, states):
-            if isinstance(state, dict):
-                device.online = state["online"]
-                device.state = state["state"]
-                device.brightness = state["brightness"]
-                device.color_temp = state.get("color_temp")
-                device.color_mode = state.get("color_mode", "white")
-                device.color_rgb = state.get("color_rgb")
-                session.add(device)
-                valid.append((device.id, state))
-        session.commit()
-        devices = list(session.exec(select(Device)).all())
-        await asyncio.gather(*[check_state_triggers(did, s) for did, s in valid], return_exceptions=True)
     schedules = {s.device_id: s for s in session.exec(select(Schedule)).all()}
     return templates.TemplateResponse(
         request, "partials/device_grid.html", {"devices": devices, "schedules": schedules}
