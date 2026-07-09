@@ -43,6 +43,7 @@ def _get_schedule(device_id: int, session: Session) -> Schedule | None:
 router = APIRouter(prefix="/devices", tags=["devices"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.cache = None
+templates.env.filters["fromjson"] = json.loads
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -390,6 +391,25 @@ async def device_settings_page(device_id: int, request: Request, session: Sessio
     if not device:
         raise HTTPException(status_code=404)
     return templates.TemplateResponse(request, "device_settings.html", {"device": device})
+
+
+@router.post("/{device_id}/settings/overload_protection", response_class=HTMLResponse)
+async def set_overload_protection(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    op: dict = {}
+    for key in ("max_power", "max_current", "max_voltage", "min_voltage", "min_power", "min_current"):
+        if key in form and str(form[key]).strip():
+            op[key] = float(form[key])
+    for key in ("enable_max_voltage", "enable_min_voltage", "enable_min_power", "enable_min_current"):
+        op[key] = "ENABLE" if key in form else "DISABLE"
+    await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", {"overload_protection": op})
+    device.overload_protection = json.dumps(op)
+    session.add(device)
+    session.commit()
+    return HTMLResponse('<p class="text-sm text-green-600 font-medium">Overload protection saved.</p>')
 
 
 @router.post("/{device_id}/settings/power_on_behavior", response_class=HTMLResponse)

@@ -32,6 +32,8 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.brightness = round(int(payload["brightness"]) / 2.54)
         if "power_on_behavior" in payload:
             device.power_on_behavior = str(payload["power_on_behavior"])
+        if "overload_protection" in payload and isinstance(payload["overload_protection"], dict):
+            device.overload_protection = json.dumps(payload["overload_protection"])
         if "power" in payload:
             device.power = round(float(payload["power"]), 1)
         if "current" in payload:
