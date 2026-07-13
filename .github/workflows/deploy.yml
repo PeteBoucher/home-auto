@@ -3,6 +3,11 @@ name: CI / Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/**'
 
 jobs:
   test-and-deploy:
