@@ -44,7 +44,7 @@ class TestRainAutomation:
             name="Test Bulb",
             device_id="dev_bulb_001",
             local_key="key",
-            ip_address="192.168.1.99",
+            ip_address="192.168.x.x",
             type=DeviceType.bulb,
             integration=Integration.tuya,
             protocol_version=3.5,
@@ -61,7 +61,7 @@ class TestRainAutomation:
 
     def test_activates_on_rain(self, engine, bulb):
         with (
-            patch("app.services.automations.engine", engine),
+            patch("app.devices.tuya.engine", engine),
             patch("app.services.automations.is_raining", new=AsyncMock(return_value=True)),
             patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
@@ -84,7 +84,7 @@ class TestRainAutomation:
             "color_temp": 50,
         }
         with (
-            patch("app.services.automations.engine", engine),
+            patch("app.devices.tuya.engine", engine),
             patch("app.services.automations.is_raining", new=AsyncMock(return_value=False)),
             patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
@@ -107,7 +107,7 @@ class TestRainAutomation:
     def test_no_double_activation(self, engine, bulb):
         auto_module._raining = True
         with (
-            patch("app.services.automations.engine", engine),
+            patch("app.devices.tuya.engine", engine),
             patch("app.services.automations.is_raining", new=AsyncMock(return_value=True)),
             patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),

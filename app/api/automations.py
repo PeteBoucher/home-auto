@@ -1,19 +1,13 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from app.db import get_session
+from app.db import SessionDep
 from app.devices.models import Automation, Device, TriggerType
 from app.services.automation_engine import apply_automation, remove_automation
+from app.templating import templates
 
 router = APIRouter(prefix="/automations", tags=["automations"])
-templates = Jinja2Templates(directory="app/templates")
-templates.env.cache = None
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def _render_row(request: Request, auto: Automation, session: Session) -> str:

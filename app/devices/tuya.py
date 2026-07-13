@@ -5,8 +5,10 @@ import time
 from typing import Any
 
 import tinytuya
+from sqlmodel import Session, select
 
-from app.devices.models import Device, DeviceType
+from app.db import engine
+from app.devices.models import Device, DeviceType, Integration
 
 _TIMEOUT = 5
 
@@ -152,3 +154,27 @@ async def live_snapshot(device: Device) -> dict[str, Any]:
 
 async def send_command(device: Device, command: dict[str, Any]) -> None:
     await asyncio.to_thread(_send_command_sync, device, command)
+
+
+def get_tuya_bulbs() -> list[Device]:
+    with Session(engine) as session:
+        return list(session.exec(
+            select(Device).where(
+                Device.integration == Integration.tuya,
+                Device.type == DeviceType.bulb,
+            )
+        ).all())
+
+
+async def restore_bulb_state(bulb: Device, snap: dict) -> None:
+    if not snap["state"]:
+        await send_command(bulb, {"state": False})
+    elif snap["color_mode"] == "colour" and snap["color_rgb"]:
+        await send_command(bulb, {"state": True})
+        await send_command(bulb, {"color_rgb": snap["color_rgb"]})
+    else:
+        await send_command(bulb, {"state": True})
+        if snap["brightness"] is not None:
+            await send_command(bulb, {"brightness": snap["brightness"]})
+        if snap["color_temp"] is not None:
+            await send_command(bulb, {"color_temp": snap["color_temp"]})

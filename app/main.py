@@ -2,16 +2,19 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, Request
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete
 from sqlmodel import Session, select
 
-from app.db import engine, get_session, init_db
+from app.db import SessionDep, engine, init_db
 from app.devices.models import Device, PowerSample, Schedule
+from app.templating import templates
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.devices import firetv as firetv_client
@@ -30,9 +33,6 @@ def _prune_power_samples() -> None:
     with Session(engine) as session:
         session.exec(delete(PowerSample).where(PowerSample.timestamp < cutoff))
         session.commit()
-
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @asynccontextmanager
@@ -64,10 +64,6 @@ app.include_router(alerts_router.router)
 app.include_router(automations_router.router)
 app.include_router(history_router.router)
 app.include_router(network_router.router)
-
-templates = Jinja2Templates(directory="app/templates")
-templates.env.cache = None
-
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, session: SessionDep):

@@ -9,7 +9,6 @@ from app.devices import mqtt as mqtt_client
 
 log = logging.getLogger(__name__)
 
-_Z2M_PREFIX = "zigbee2mqtt"
 _last_eval: dict[int, bool] = {}  # automation_id → last condition result (edge detection)
 
 
@@ -68,7 +67,7 @@ async def _fire(automation: Automation) -> None:
             payload["state"] = "ON" if command["state"] else "OFF"
         if "brightness" in command:
             payload["brightness"] = round(command["brightness"] * 2.54)
-        await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", payload)
+        await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
 
 
 def _eval_condition(field: str, operator: str, trigger_value: str, state: dict) -> bool:

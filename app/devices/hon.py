@@ -2,9 +2,6 @@ import logging
 import os
 from typing import Any
 
-from dotenv import load_dotenv
-
-load_dotenv()
 log = logging.getLogger(__name__)
 
 _MODE_TO_INT = {"auto": 0, "cool": 1, "dry": 2, "fan": 3, "heat": 4}

@@ -2,12 +2,12 @@ import asyncio
 import logging
 import threading
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.db import engine
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import Device
 from app.devices import tuya as tuya_client
-from app.devices.tuya import _rgb_hex_to_hsv_hex
+from app.devices.tuya import _rgb_hex_to_hsv_hex, get_tuya_bulbs, restore_bulb_state
 
 log = logging.getLogger(__name__)
 
@@ -22,32 +22,12 @@ _stop = threading.Event()
 _saved: dict[int, dict] = {}
 
 
-def _tuya_bulbs() -> list[Device]:
-    with Session(engine) as session:
-        return list(session.exec(
-            select(Device).where(
-                Device.integration == Integration.tuya,
-                Device.type == DeviceType.bulb,
-            )
-        ).all())
-
-
 async def _restore(bulbs: list[Device]) -> None:
     for bulb in bulbs:
         snap = _saved.pop(bulb.id, None)
         if snap is None:
             continue
-        if not snap["state"]:
-            await tuya_client.send_command(bulb, {"state": False})
-        elif snap["color_mode"] == "colour" and snap["color_rgb"]:
-            await tuya_client.send_command(bulb, {"state": True})
-            await tuya_client.send_command(bulb, {"color_rgb": snap["color_rgb"]})
-        else:
-            await tuya_client.send_command(bulb, {"state": True})
-            if snap["brightness"] is not None:
-                await tuya_client.send_command(bulb, {"brightness": snap["brightness"]})
-            if snap["color_temp"] is not None:
-                await tuya_client.send_command(bulb, {"color_temp": snap["color_temp"]})
+        await restore_bulb_state(bulb, snap)
         # Write snapshot back to DB so the dashboard card is correct immediately
         with Session(engine) as session:
             db_bulb = session.get(Device, bulb.id)
@@ -81,7 +61,7 @@ async def activate() -> None:
     global _active, _task, _stop
     if _active:
         return
-    bulbs = _tuya_bulbs()
+    bulbs = get_tuya_bulbs()
     for bulb in bulbs:
         _saved[bulb.id] = await tuya_client.live_snapshot(bulb)
     _active = True

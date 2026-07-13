@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app.services import red_alert
+from app.templating import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
-templates.env.cache = None
 
 
 @router.post("/red-alert", response_class=HTMLResponse)

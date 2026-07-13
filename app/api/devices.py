@@ -2,22 +2,19 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from app.db import get_session
+from app.db import SessionDep
 from app.devices.models import Device, DeviceType, Integration, PowerSample, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
-
-_Z2M_PREFIX = "zigbee2mqtt"
+from app.templating import templates
 
 _DEVICES_JSON = Path("devices.json")
 
@@ -41,12 +38,16 @@ def _get_schedule(device_id: int, session: Session) -> Schedule | None:
     return session.exec(select(Schedule).where(Schedule.device_id == device_id)).first()
 
 
-router = APIRouter(prefix="/devices", tags=["devices"])
-templates = Jinja2Templates(directory="app/templates")
-templates.env.cache = None
-templates.env.filters["fromjson"] = json.loads
+def _import_success(name: str) -> HTMLResponse:
+    return HTMLResponse(
+        f'<div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">'
+        f'<span class="font-medium text-green-800">{name}</span>'
+        f'<span class="text-xs text-green-600 font-medium">Added to dashboard</span>'
+        f'</div>'
+    )
 
-SessionDep = Annotated[Session, Depends(get_session)]
+
+router = APIRouter(prefix="/devices", tags=["devices"])
 
 
 @router.get("/grid", response_class=HTMLResponse)
@@ -92,12 +93,7 @@ async def import_device(tuya_id: str, request: Request, session: SessionDep):
     )
     session.add(device)
     session.commit()
-    return HTMLResponse(
-        f'<div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">'
-        f'<span class="font-medium text-green-800">{device.name}</span>'
-        f'<span class="text-xs text-green-600 font-medium">Added to dashboard</span>'
-        f'</div>'
-    )
+    return _import_success(device.name)
 
 
 @router.get("/hon", response_class=HTMLResponse)
@@ -133,12 +129,7 @@ async def hon_import_device(uid: str, request: Request, session: SessionDep):
     )
     session.add(device)
     session.commit()
-    return HTMLResponse(
-        f'<div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">'
-        f'<span class="font-medium text-green-800">{device.name}</span>'
-        f'<span class="text-xs text-green-600 font-medium">Added to dashboard</span>'
-        f'</div>'
-    )
+    return _import_success(device.name)
 
 
 @router.get("/z2m", response_class=HTMLResponse)
@@ -159,7 +150,7 @@ async def z2m_discover_page(request: Request, session: SessionDep):
 @router.post("/z2m/permit_join", response_class=HTMLResponse)
 async def z2m_permit_join(request: Request):
     await mqtt_client.publish(
-        f"{_Z2M_PREFIX}/bridge/request/permit_join",
+        f"{mqtt_client.PREFIX}/bridge/request/permit_join",
         {"value": True, "time": 120},
     )
     return HTMLResponse(
@@ -186,12 +177,7 @@ async def z2m_import_device(friendly_name: str, request: Request, session: Sessi
     )
     session.add(device)
     session.commit()
-    return HTMLResponse(
-        f'<div class="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">'
-        f'<span class="font-medium text-green-800">{device.name}</span>'
-        f'<span class="text-xs text-green-600 font-medium">Added to dashboard</span>'
-        f'</div>'
-    )
+    return _import_success(device.name)
 
 
 @router.get("/add", response_class=HTMLResponse)
@@ -314,7 +300,7 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
             payload["state"] = "ON" if command["state"] else "OFF"
         if "brightness" in command:
             payload["brightness"] = round(command["brightness"] * 2.54)
-        await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", payload)
+        await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
         # Optimistic update — real confirmation arrives via MQTT subscription
         if "state" in command:
             device.state = command["state"]
@@ -394,7 +380,7 @@ async def set_overload_protection(device_id: int, request: Request, session: Ses
             op[key] = float(form[key])
     for key in ("enable_max_voltage", "enable_min_voltage", "enable_min_power", "enable_min_current"):
         op[key] = "ENABLE" if key in form else "DISABLE"
-    await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", {"overload_protection": op})
+    await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", {"overload_protection": op})
     device.overload_protection = json.dumps(op)
     session.add(device)
     session.commit()
@@ -410,7 +396,7 @@ async def set_power_on_behavior(device_id: int, request: Request, session: Sessi
     value = str(form["power_on_behavior"])
     if value not in ("on", "off", "previous"):
         raise HTTPException(status_code=400)
-    await mqtt_client.publish(f"{_Z2M_PREFIX}/{device.device_id}/set", {"power_on_behavior": value})
+    await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", {"power_on_behavior": value})
     device.power_on_behavior = value
     session.add(device)
     session.commit()

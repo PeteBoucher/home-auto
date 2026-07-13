@@ -4,19 +4,15 @@ import socket
 from urllib.parse import urlparse
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from app.db import get_session
+from app.db import SessionDep
 from app.devices.models import Device, Integration
+from app.templating import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
-templates.env.cache = None
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def _icon(hostname: str, ha_type: str | None, is_gateway: bool, is_self: bool) -> str:

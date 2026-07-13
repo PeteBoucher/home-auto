@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
-_Z2M_PREFIX = "zigbee2mqtt"
 
 
 async def _send(device_id: int, state: bool) -> None:
@@ -26,7 +25,7 @@ async def _send(device_id: int, state: bool) -> None:
         await tuya_client.send_command(device, {"state": state})
     elif device.integration == Integration.zigbee2mqtt:
         await mqtt_client.publish(
-            f"{_Z2M_PREFIX}/{device.device_id}/set",
+            f"{mqtt_client.PREFIX}/{device.device_id}/set",
             {"state": "ON" if state else "OFF"},
         )
 
