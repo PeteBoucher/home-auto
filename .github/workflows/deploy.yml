@@ -1,0 +1,23 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          source /opt/home-auto/.venv/bin/activate
+          pip install -q -r requirements.txt
+          pytest
+
+      - name: Deploy
+        run: |
+          git -C /opt/home-auto pull
+          sudo systemctl restart home-auto
