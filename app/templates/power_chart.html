@@ -49,8 +49,8 @@
       yAxis: { beginAtZero: true, ticks: { precision: 1 } },
     },
     {
-      id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'A',
-      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
+      id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'mA', scale: 1000,
+      yAxis: { beginAtZero: true, ticks: { precision: 0 } },
     },
   ];
 
@@ -109,11 +109,11 @@
     const resp = await fetch('/devices/{{ device.id }}/power-chart/data?hours=' + hours);
     const data = await resp.json();
 
-    const pts = (key) => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }));
+    const pts = (key, scale = 1) => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] * scale }));
 
-    SERIES.forEach(({ id, key, label, color, unit, yAxis }) => {
+    SERIES.forEach(({ id, key, label, color, unit, yAxis, scale = 1 }) => {
       if (charts[id]) charts[id].destroy();
-      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key));
+      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key, scale));
     });
   }
 
