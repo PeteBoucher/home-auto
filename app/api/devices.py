@@ -335,13 +335,21 @@ async def upsert_schedule(device_id: int, request: Request, session: SessionDep)
     if not device:
         raise HTTPException(status_code=404)
     form = await request.form()
+    on_time = str(form.get("on_time", "")).strip()
+    off_time = str(form.get("off_time", "")).strip()
+    if not on_time and not off_time:
+        schedule = _get_schedule(device_id, session)
+        return templates.TemplateResponse(
+            request, "partials/device_schedule.html",
+            {"device": device, "schedule": schedule, "error": "Set at least one time."},
+        )
     schedule = _get_schedule(device_id, session)
     if not schedule:
-        schedule = Schedule(device_id=device_id, on_time="00:00", off_time="00:00")
+        schedule = Schedule(device_id=device_id, on_time="", off_time="")
         session.add(schedule)
     is_new = schedule.id is None
-    schedule.on_time = str(form["on_time"])
-    schedule.off_time = str(form["off_time"])
+    schedule.on_time = on_time
+    schedule.off_time = off_time
     schedule.enabled = True if is_new else form.get("enabled") == "1"
     session.commit()
     session.refresh(schedule)

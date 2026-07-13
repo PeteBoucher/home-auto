@@ -10,7 +10,6 @@
       type="time"
       name="on_time"
       value="{{ schedule.on_time if schedule else '' }}"
-      required
       class="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
     >
     <span class="text-xs text-gray-400">→</span>
@@ -18,7 +17,6 @@
       type="time"
       name="off_time"
       value="{{ schedule.off_time if schedule else '' }}"
-      required
       class="border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
     >
     {% if schedule %}
@@ -26,6 +24,9 @@
       <input type="checkbox" name="enabled" value="1" {% if schedule.enabled %}checked{% endif %} class="accent-green-500">
       enabled
     </label>
+    {% endif %}
+    {% if error %}
+    <span class="text-xs text-red-400">{{ error }}</span>
     {% endif %}
     <button
       type="submit"

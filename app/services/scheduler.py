@@ -32,23 +32,22 @@ async def _send(device_id: int, state: bool) -> None:
 
 
 def _load_jobs(schedule: Schedule) -> None:
-    on_h, on_m = map(int, schedule.on_time.split(":"))
-    off_h, off_m = map(int, schedule.off_time.split(":"))
-    if schedule.enabled:
-        scheduler.add_job(
-            _send, "cron", hour=on_h, minute=on_m,
-            id=f"sched_{schedule.id}_on",
-            args=[schedule.device_id, True],
-            replace_existing=True,
-        )
-        scheduler.add_job(
-            _send, "cron", hour=off_h, minute=off_m,
-            id=f"sched_{schedule.id}_off",
-            args=[schedule.device_id, False],
-            replace_existing=True,
-        )
-    else:
-        _remove_jobs(schedule.id)
+    for suffix, time_str, state in [
+        ("on",  schedule.on_time,  True),
+        ("off", schedule.off_time, False),
+    ]:
+        job_id = f"sched_{schedule.id}_{suffix}"
+        existing = scheduler.get_job(job_id)
+        if schedule.enabled and time_str:
+            h, m = map(int, time_str.split(":"))
+            scheduler.add_job(
+                _send, "cron", hour=h, minute=m,
+                id=job_id,
+                args=[schedule.device_id, state],
+                replace_existing=True,
+            )
+        elif existing:
+            existing.remove()
 
 
 def _remove_jobs(schedule_id: int) -> None:

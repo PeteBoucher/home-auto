@@ -1,10 +1,10 @@
 """API endpoint tests using an in-memory SQLite database."""
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel import select
 
-from app.devices.models import Device
+from app.devices.models import Device, Schedule
 
 
 _TUYA_STATE_ON = {
@@ -122,6 +122,44 @@ class TestZ2MCommands:
         session.refresh(z2m_plug)
         assert z2m_plug.online is True
         assert z2m_plug.state is True
+
+
+class TestSchedule:
+    def _mock_apply(self):
+        return patch("app.api.devices.apply_schedule", new=MagicMock())
+
+    def test_off_time_only(self, client, z2m_plug, session):
+        with self._mock_apply():
+            resp = client.post(f"/devices/{z2m_plug.id}/schedule", data={"off_time": "23:00"})
+        assert resp.status_code == 200
+        sched = session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first()
+        assert sched is not None
+        assert sched.off_time == "23:00"
+        assert sched.on_time == ""
+
+    def test_on_time_only(self, client, z2m_plug, session):
+        with self._mock_apply():
+            resp = client.post(f"/devices/{z2m_plug.id}/schedule", data={"on_time": "07:30"})
+        assert resp.status_code == 200
+        sched = session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first()
+        assert sched is not None
+        assert sched.on_time == "07:30"
+        assert sched.off_time == ""
+
+    def test_both_times(self, client, z2m_plug, session):
+        with self._mock_apply():
+            resp = client.post(f"/devices/{z2m_plug.id}/schedule", data={"on_time": "08:00", "off_time": "22:00"})
+        assert resp.status_code == 200
+        sched = session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first()
+        assert sched.on_time == "08:00"
+        assert sched.off_time == "22:00"
+
+    def test_neither_time_returns_error(self, client, z2m_plug, session):
+        with self._mock_apply():
+            resp = client.post(f"/devices/{z2m_plug.id}/schedule", data={})
+        assert resp.status_code == 200
+        assert "Set at least one time" in resp.text
+        assert session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first() is None
 
 
 class TestDeviceManagement:
