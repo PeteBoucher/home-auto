@@ -40,12 +40,21 @@
   let activeHours = 6;
 
   const SERIES = [
-    { id: 'voltage-chart', key: 'voltage', label: 'Voltage', color: '#3B82F6', unit: 'V' },
-    { id: 'power-chart',   key: 'power',   label: 'Power',   color: '#F59E0B', unit: 'W' },
-    { id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'A' },
+    {
+      id: 'voltage-chart', key: 'voltage', label: 'Voltage', color: '#3B82F6', unit: 'V',
+      yAxis: { suggestedMin: 220, suggestedMax: 240, ticks: { precision: 1 } },
+    },
+    {
+      id: 'power-chart', key: 'power', label: 'Power', color: '#F59E0B', unit: 'W',
+      yAxis: { beginAtZero: true, ticks: { precision: 1 } },
+    },
+    {
+      id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'A',
+      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
+    },
   ];
 
-  function makeChart(canvasId, label, color, unit, points) {
+  function makeChart(canvasId, label, color, unit, yAxis, points) {
     return new Chart(document.getElementById(canvasId), {
       type: 'line',
       data: {
@@ -75,9 +84,10 @@
             ticks: { color: '#9CA3AF', font: { size: 11 } },
           },
           y: {
+            ...yAxis,
             title: { display: true, text: unit, color: '#9CA3AF', font: { size: 11 } },
             grid: { color: '#F3F4F6' },
-            ticks: { color: '#9CA3AF', font: { size: 11 } },
+            ticks: { color: '#9CA3AF', font: { size: 11 }, ...yAxis.ticks },
           },
         },
       },
@@ -87,7 +97,6 @@
   async function loadChart(hours) {
     activeHours = hours;
 
-    // Update button styles
     [1, 6, 24, 168].forEach(h => {
       const btn = document.getElementById('btn-' + h);
       if (h === hours) {
@@ -102,9 +111,9 @@
 
     const pts = (key) => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }));
 
-    SERIES.forEach(({ id, key, label, color, unit }) => {
+    SERIES.forEach(({ id, key, label, color, unit, yAxis }) => {
       if (charts[id]) charts[id].destroy();
-      charts[id] = makeChart(id, label, color, unit, pts(key));
+      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key));
     });
   }
 
