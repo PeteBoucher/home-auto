@@ -19,5 +19,6 @@ jobs:
 
       - name: Deploy
         run: |
-          git -C /opt/home-auto pull
+          git -C /opt/home-auto fetch origin main
+          git -C /opt/home-auto reset --hard origin/main
           sudo systemctl restart home-auto
