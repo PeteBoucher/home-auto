@@ -1,16 +1,17 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
-from app.db import get_session, init_db
-from app.devices.models import Device, Schedule
+from app.db import engine, get_session, init_db
+from app.devices.models import Device, PowerSample, Schedule
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.devices import firetv as firetv_client
@@ -24,6 +25,13 @@ from app.services.scheduler import scheduler, init_schedules
 from app.services.automation_engine import load_time_automations
 from app.services.tuya_poller import poll_tuya_devices
 
+def _prune_power_samples() -> None:
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    with Session(engine) as session:
+        session.exec(delete(PowerSample).where(PowerSample.timestamp < cutoff))
+        session.commit()
+
+
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
@@ -35,6 +43,7 @@ async def lifespan(app: FastAPI):
     firetv_task = asyncio.create_task(firetv_client.run())
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.add_job(poll_tuya_devices, "interval", seconds=30, next_run_time=datetime.now())
+    scheduler.add_job(_prune_power_samples, "interval", hours=24)
     scheduler.start()
     init_schedules()
     load_time_automations()

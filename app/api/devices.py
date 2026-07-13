@@ -1,15 +1,16 @@
 import asyncio
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.devices.models import Device, DeviceType, Integration, Schedule
+from app.devices.models import Device, DeviceType, Integration, PowerSample, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -408,6 +409,30 @@ async def set_power_on_behavior(device_id: int, request: Request, session: Sessi
     return HTMLResponse(
         f'<p class="text-sm text-green-600 font-medium">Saved — will restore to <strong>{value}</strong> after power cut.</p>'
     )
+
+
+@router.get("/{device_id}/power-chart", response_class=HTMLResponse)
+async def power_chart_page(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "power_chart.html", {"device": device})
+
+
+@router.get("/{device_id}/power-chart/data")
+async def power_chart_data(device_id: int, session: SessionDep, hours: int = Query(default=6, ge=1, le=168)):
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    samples = session.exec(
+        select(PowerSample)
+        .where(PowerSample.device_id == device_id, PowerSample.timestamp >= cutoff)
+        .order_by(PowerSample.timestamp)
+    ).all()
+    return {
+        "timestamps": [s.timestamp.isoformat() for s in samples],
+        "voltage": [s.voltage for s in samples],
+        "power": [s.power for s in samples],
+        "current": [s.current for s in samples],
+    }
 
 
 @router.post("/{device_id}/delete")

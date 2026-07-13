@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="flex items-center gap-3 mb-6">
+    <a href="/devices/{{ device.id }}/settings" class="text-gray-400 hover:text-gray-600 transition-colors">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h1 class="text-xl font-semibold text-gray-800">{{ device.name }} — Power History</h1>
+  </div>
+
+  <div class="flex gap-2 mb-4">
+    {% for h, label in [(1, "1h"), (6, "6h"), (24, "24h"), (168, "7d")] %}
+    <button onclick="loadChart({{ h }})" id="btn-{{ h }}"
+      class="px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Voltage (V)</p>
+    <canvas id="voltage-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Power (W)</p>
+    <canvas id="power-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Current (A)</p>
+    <canvas id="current-chart"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+  let charts = {};
+  let activeHours = 6;
+
+  const SERIES = [
+    { id: 'voltage-chart', key: 'voltage', label: 'Voltage', color: '#3B82F6', unit: 'V' },
+    { id: 'power-chart',   key: 'power',   label: 'Power',   color: '#F59E0B', unit: 'W' },
+    { id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'A' },
+  ];
+
+  function makeChart(canvasId, label, color, unit, points) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'line',
+      data: {
+        datasets: [{
+          label,
+          data: points,
+          borderColor: color,
+          backgroundColor: color + '18',
+          borderWidth: 1.5,
+          tension: 0.3,
+          pointRadius: 0,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'HH:mm',
+              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' },
+            },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+          y: {
+            title: { display: true, text: unit, color: '#9CA3AF', font: { size: 11 } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadChart(hours) {
+    activeHours = hours;
+
+    // Update button styles
+    [1, 6, 24, 168].forEach(h => {
+      const btn = document.getElementById('btn-' + h);
+      if (h === hours) {
+        btn.className = 'px-3 py-1 text-sm rounded-lg bg-blue-600 text-white transition-colors';
+      } else {
+        btn.className = 'px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors';
+      }
+    });
+
+    const resp = await fetch('/devices/{{ device.id }}/power-chart/data?hours=' + hours);
+    const data = await resp.json();
+
+    const pts = (key) => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }));
+
+    SERIES.forEach(({ id, key, label, color, unit }) => {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = makeChart(id, label, color, unit, pts(key));
+    });
+  }
+
+  loadChart(6);
+</script>
+{% endblock %}

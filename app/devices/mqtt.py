@@ -6,7 +6,7 @@ import aiomqtt
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Device, Integration
+from app.devices.models import Device, Integration, PowerSample
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +43,13 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
         if "energy" in payload:
             device.energy = round(float(payload["energy"]), 3)
         session.add(device)
+        if any(k in payload for k in ("power", "voltage", "current")):
+            session.add(PowerSample(
+                device_id=device.id,
+                voltage=device.voltage,
+                power=device.power,
+                current=device.current,
+            ))
         session.commit()
         return device.id, {
             "state": device.state, "brightness": device.brightness, "online": device.online,
