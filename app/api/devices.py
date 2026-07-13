@@ -338,9 +338,10 @@ async def upsert_schedule(device_id: int, request: Request, session: SessionDep)
     if not schedule:
         schedule = Schedule(device_id=device_id, on_time="00:00", off_time="00:00")
         session.add(schedule)
+    is_new = schedule.id is None
     schedule.on_time = str(form["on_time"])
     schedule.off_time = str(form["off_time"])
-    schedule.enabled = form.get("enabled") == "1"
+    schedule.enabled = True if is_new else form.get("enabled") == "1"
     session.commit()
     session.refresh(schedule)
     apply_schedule(schedule)
