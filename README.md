@@ -150,13 +150,34 @@ ROACHCAM_URL=http://roachcam.local:8080
 FIRETV_HOST=<fire-tv-ip>
 ```
 
-### Updating
+### Deployment pipeline
+
+Pushing to `main` automatically tests and deploys via a GitHub Actions self-hosted runner installed on the Pi:
+
+1. Runner picks up the job immediately on push
+2. Checks out the branch and runs `pytest` inside `/opt/home-auto/.venv`
+3. If tests pass: `git fetch + reset --hard` to `/opt/home-auto`, then `systemctl restart home-auto`
+4. If tests fail: the service is not touched
+
+View run history at `github.com/PeteBoucher/home-auto/actions`.
+
+**Runner setup** (already done — for reference if rebuilding the Pi):
 
 ```bash
-cd /opt/home-auto
-sudo git pull
-sudo .venv/bin/pip install -e .
-sudo systemctl restart home-auto
+mkdir -p ~/actions-runner && cd ~/actions-runner
+curl -sL https://github.com/actions/runner/releases/download/v2.335.1/actions-runner-linux-arm64-2.335.1.tar.gz | tar xz
+./config.sh --url https://github.com/PeteBoucher/home-auto --token <runner-token> --name homeauto-pi --unattended
+sudo ./svc.sh install pete && sudo ./svc.sh start
+echo 'pete ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart home-auto' | sudo tee /etc/sudoers.d/home-auto-deploy
+sudo chmod 440 /etc/sudoers.d/home-auto-deploy
+```
+
+Get a fresh `<runner-token>` from GitHub → repo Settings → Actions → Runners → New self-hosted runner.
+
+**Emergency manual deploy** (bypasses pipeline):
+
+```bash
+ssh pete@homeauto.local "cd /opt/home-auto && git fetch origin main && git reset --hard origin/main && sudo systemctl restart home-auto"
 ```
 
 ## Development
