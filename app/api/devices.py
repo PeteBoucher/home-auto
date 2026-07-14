@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.db import SessionDep
-from app.devices.models import Device, DeviceType, Integration, PowerSample, Schedule
+from app.devices.models import ClimateSample, Device, DeviceType, Integration, PowerSample, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -440,6 +440,29 @@ async def power_chart_data(device_id: int, session: SessionDep, hours: int = Que
         "voltage": [s.voltage for s in samples],
         "power": [s.power for s in samples],
         "current": [s.current for s in samples],
+    }
+
+
+@router.get("/{device_id}/climate-chart", response_class=HTMLResponse)
+async def climate_chart_page(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device or device.type != DeviceType.sensor:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "climate_chart.html", {"device": device})
+
+
+@router.get("/{device_id}/climate-chart/data")
+async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Query(default=168, ge=1, le=168)):
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    samples = session.exec(
+        select(ClimateSample)
+        .where(ClimateSample.device_id == device_id, ClimateSample.timestamp >= cutoff)
+        .order_by(ClimateSample.timestamp)
+    ).all()
+    return {
+        "timestamps": [s.timestamp.isoformat() for s in samples],
+        "temperature": [s.temperature for s in samples],
+        "humidity": [s.humidity for s in samples],
     }
 
 

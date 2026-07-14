@@ -7,7 +7,7 @@ import aiomqtt
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Device, DeviceType, Integration, PowerSample
+from app.devices.models import ClimateSample, Device, DeviceType, Integration, PowerSample
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +61,12 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
                 voltage=device.voltage,
                 power=device.power,
                 current=device.current,
+            ))
+        if any(k in payload for k in ("temperature", "humidity")):
+            session.add(ClimateSample(
+                device_id=device.id,
+                temperature=device.sensor_temperature,
+                humidity=device.humidity,
             ))
         session.commit()
         return device.id, {

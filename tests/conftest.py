@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.devices.models import Automation, Device, DeviceType, Integration, Schedule  # noqa: F401 — all models imported so SQLModel.metadata.create_all creates their tables
+from app.devices.models import Automation, ClimateSample, Device, DeviceType, Integration, PowerSample, Schedule  # noqa: F401 — all models imported so SQLModel.metadata.create_all creates their tables
 
 
 @pytest.fixture(name="engine")

@@ -101,3 +101,11 @@ class PowerSample(SQLModel, table=True):
     voltage: Optional[float] = None
     power: Optional[float] = None
     current: Optional[float] = None
+
+
+class ClimateSample(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    temperature: Optional[float] = None
+    humidity: Optional[float] = None

@@ -192,6 +192,39 @@ class TestSchedule:
         assert session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first() is None
 
 
+class TestClimateChart:
+    def test_chart_page(self, client, z2m_sensor):
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")
+        assert resp.status_code == 200
+        assert "Climate History" in resp.text
+
+    def test_chart_page_404_for_non_sensor(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/climate-chart")
+        assert resp.status_code == 404
+
+    def test_data_empty(self, client, z2m_sensor):
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/data")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["timestamps"] == []
+        assert data["temperature"] == []
+        assert data["humidity"] == []
+
+    def test_data_returns_samples(self, client, z2m_sensor, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample
+        session.add(ClimateSample(
+            device_id=z2m_sensor.id, temperature=21.5, humidity=55.2,
+            timestamp=datetime.utcnow(),
+        ))
+        session.commit()
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/data")
+        data = resp.json()
+        assert len(data["timestamps"]) == 1
+        assert data["temperature"][0] == 21.5
+        assert data["humidity"][0] == 55.2
+
+
 class TestDeviceManagement:
     def test_delete_device(self, client, tuya_bulb, session):
         resp = client.post(f"/devices/{tuya_bulb.id}/delete")

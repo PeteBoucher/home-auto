@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="flex items-center gap-3 mb-6">
+    <a href="/" class="text-gray-400 hover:text-gray-600 transition-colors">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <h1 class="text-xl font-semibold text-gray-800">{{ device.name }} — Climate History</h1>
+  </div>
+
+  <div class="flex gap-2 mb-4">
+    {% for h, label in [(1, "1h"), (6, "6h"), (24, "24h"), (168, "7d")] %}
+    <button onclick="loadChart({{ h }})" id="btn-{{ h }}"
+      class="px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Temperature (°C)</p>
+    <canvas id="temp-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Humidity (%)</p>
+    <canvas id="humid-chart"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+  let charts = {};
+
+  const SERIES = [
+    {
+      id: 'temp-chart', key: 'temperature', label: 'Temperature', color: '#F59E0B', unit: '°C',
+      yAxis: { ticks: { precision: 1 } },
+    },
+    {
+      id: 'humid-chart', key: 'humidity', label: 'Humidity', color: '#3B82F6', unit: '%',
+      yAxis: { suggestedMin: 0, suggestedMax: 100, ticks: { precision: 0 } },
+    },
+  ];
+
+  function makeChart(canvasId, label, color, unit, yAxis, points) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'line',
+      data: {
+        datasets: [{
+          label,
+          data: points,
+          borderColor: color,
+          backgroundColor: color + '18',
+          borderWidth: 1.5,
+          tension: 0.3,
+          pointRadius: 0,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'dd MMM HH:mm',
+              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' },
+            },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+          y: {
+            ...yAxis,
+            title: { display: true, text: unit, color: '#9CA3AF', font: { size: 11 } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 }, ...yAxis.ticks },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadChart(hours) {
+    [1, 6, 24, 168].forEach(h => {
+      const btn = document.getElementById('btn-' + h);
+      if (h === hours) {
+        btn.className = 'px-3 py-1 text-sm rounded-lg bg-blue-600 text-white transition-colors';
+      } else {
+        btn.className = 'px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors';
+      }
+    });
+
+    const resp = await fetch('/devices/{{ device.id }}/climate-chart/data?hours=' + hours);
+    const data = await resp.json();
+
+    if (data.timestamps.length === 0) {
+      ['temp-chart', 'humid-chart'].forEach(id => {
+        const canvas = document.getElementById(id);
+        const ctx = canvas.getContext('2d');
+        canvas.height = 60;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#9CA3AF';
+        ctx.font = '13px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('No data for this period', canvas.width / 2, 36);
+      });
+      return;
+    }
+
+    const pts = key => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }));
+
+    SERIES.forEach(({ id, key, label, color, unit, yAxis }) => {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key));
+    });
+  }
+
+  loadChart(168);
+</script>
+{% endblock %}

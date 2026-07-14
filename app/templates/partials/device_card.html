@@ -25,12 +25,18 @@
       <p class="text-xs text-gray-400 mt-0.5">Humidity</p>
     </div>
   </div>
-  {% if device.battery is not none %}
-  <div class="flex items-center justify-end gap-1 text-xs text-gray-400 -mt-1">
-    <i class="bi {% if device.battery > 60 %}bi-battery-full text-green-500{% elif device.battery > 20 %}bi-battery-half text-yellow-500{% else %}bi-battery text-red-400{% endif %}"></i>
-    {{ device.battery }}%
+  <div class="flex items-center justify-between -mt-1">
+    <a href="/devices/{{ device.id }}/climate-chart"
+       class="text-xs text-blue-400 hover:text-blue-600 transition-colors">
+      <i class="bi bi-graph-up"></i> Chart
+    </a>
+    {% if device.battery is not none %}
+    <span class="flex items-center gap-1 text-xs text-gray-400">
+      <i class="bi {% if device.battery > 60 %}bi-battery-full text-green-500{% elif device.battery > 20 %}bi-battery-half text-yellow-500{% else %}bi-battery text-red-400{% endif %}"></i>
+      {{ device.battery }}%
+    </span>
+    {% endif %}
   </div>
-  {% endif %}
 
   {% elif device.type.value == "tv" %}
   {% set ms = device.media_state or "off" %}
