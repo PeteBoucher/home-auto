@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 import aiomqtt
 from sqlmodel import Session, select
@@ -13,6 +14,8 @@ log = logging.getLogger(__name__)
 HOST = "localhost"
 PORT = 1883
 PREFIX = "zigbee2mqtt"
+
+Z2M_STATE_FILE = Path("/opt/zigbee2mqtt/data/state.json")
 
 
 def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tuple[int, dict] | None:
@@ -92,7 +95,50 @@ async def _listen(client: aiomqtt.Client) -> None:
             await check_state_triggers(*result)
 
 
+def _seed_from_z2m_cache() -> None:
+    """Populate sensor readings from Z2M's state.json on startup.
+
+    Z2M only republishes cached state when it restarts, not when our app
+    reconnects. For sleepy sensors (SNZB-02 etc.) that may not report for
+    up to an hour, this ensures the dashboard shows the last known values
+    immediately after an app restart.
+    """
+    if not Z2M_STATE_FILE.exists():
+        return
+    try:
+        cache = json.loads(Z2M_STATE_FILE.read_text())
+    except Exception:
+        return
+    with Session(engine) as session:
+        devices = session.exec(
+            select(Device).where(
+                Device.integration == Integration.zigbee2mqtt,
+                Device.type == DeviceType.sensor,
+            )
+        ).all()
+        for device in devices:
+            state = cache.get(device.device_id)
+            if not state:
+                continue
+            changed = False
+            if "temperature" in state and device.sensor_temperature is None:
+                device.sensor_temperature = round(float(state["temperature"]), 1)
+                changed = True
+            if "humidity" in state and device.humidity is None:
+                device.humidity = round(float(state["humidity"]), 1)
+                changed = True
+            if "battery" in state and device.battery is None:
+                device.battery = int(state["battery"])
+                changed = True
+            if changed:
+                device.online = True
+                session.add(device)
+                log.info("Seeded %s from Z2M cache: %s", device.name, state)
+        session.commit()
+
+
 async def run() -> None:
+    _seed_from_z2m_cache()
     while True:
         try:
             async with aiomqtt.Client(HOST, PORT) as client:
