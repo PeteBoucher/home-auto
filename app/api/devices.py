@@ -33,6 +33,8 @@ def _infer_type(data: dict) -> str:
     name = data.get("name", "").lower()
     if category in _BULB_CATEGORIES or any(w in name for w in ("bulb", "light", "lamp")):
         return "bulb"
+    if any(w in name for w in ("sensor", "temperature", "humidity", "temp", "thermo")):
+        return "sensor"
     return "plug"
 
 def _get_schedule(device_id: int, session: Session) -> Schedule | None:

@@ -63,6 +63,24 @@ def z2m_plug_fixture(session):
     return device
 
 
+@pytest.fixture(name="z2m_sensor")
+def z2m_sensor_fixture(session):
+    device = Device(
+        name="Bedroom Sensor",
+        device_id="bedroom_sensor",
+        type=DeviceType.sensor,
+        integration=Integration.zigbee2mqtt,
+        online=True,
+        sensor_temperature=21.5,
+        humidity=55.2,
+        battery=86,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 @pytest.fixture(name="firetv_device")
 def firetv_device_fixture(session):
     device = Device(

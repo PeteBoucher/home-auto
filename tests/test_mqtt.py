@@ -8,6 +8,21 @@ from app.devices.models import Device, DeviceType, Integration
 from app.devices.mqtt import _apply_state
 
 
+@pytest.fixture(name="z2m_sensor")
+def z2m_sensor_fixture(session, engine):
+    device = Device(
+        name="Bedroom Sensor",
+        device_id="bedroom_sensor",
+        type=DeviceType.sensor,
+        integration=Integration.zigbee2mqtt,
+        online=True,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 @pytest.fixture(name="z2m_device")
 def z2m_device_fixture(session, engine):
     device = Device(
@@ -79,6 +94,21 @@ class TestApplyState:
         # should not raise
         with patch("app.devices.mqtt.engine", engine):
             _apply_state("no_such_device", {"state": "ON"})
+
+    def test_sensor_temperature(self, engine, session, z2m_sensor):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 21.5, "humidity": 55.2, "battery": 86})
+        d = _refresh(session, z2m_sensor)
+        assert d.sensor_temperature == 21.5
+        assert d.humidity == 55.2
+        assert d.battery == 86
+
+    def test_sensor_temperature_rounded(self, engine, session, z2m_sensor):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 21.567, "humidity": 55.234})
+        d = _refresh(session, z2m_sensor)
+        assert d.sensor_temperature == 21.6
+        assert d.humidity == 55.2
 
     def test_ignores_non_z2m_device(self, engine, session):
         # A Tuya device with the same device_id should not be updated

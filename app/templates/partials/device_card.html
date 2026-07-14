@@ -9,7 +9,30 @@
     </span>
   </div>
 
-  {% if device.type.value == "tv" %}
+  {% if device.type.value == "sensor" %}
+  <div class="flex items-center justify-around py-2">
+    <div class="text-center">
+      <p class="text-3xl font-semibold text-gray-800">
+        {% if device.sensor_temperature is not none %}{{ device.sensor_temperature }}°{% else %}—{% endif %}
+      </p>
+      <p class="text-xs text-gray-400 mt-0.5">Temperature</p>
+    </div>
+    <div class="w-px h-12 bg-gray-100"></div>
+    <div class="text-center">
+      <p class="text-3xl font-semibold text-gray-800">
+        {% if device.humidity is not none %}{{ device.humidity }}%{% else %}—{% endif %}
+      </p>
+      <p class="text-xs text-gray-400 mt-0.5">Humidity</p>
+    </div>
+  </div>
+  {% if device.battery is not none %}
+  <div class="flex items-center justify-end gap-1 text-xs text-gray-400 -mt-1">
+    <i class="bi {% if device.battery > 60 %}bi-battery-full text-green-500{% elif device.battery > 20 %}bi-battery-half text-yellow-500{% else %}bi-battery text-red-400{% endif %}"></i>
+    {{ device.battery }}%
+  </div>
+  {% endif %}
+
+  {% elif device.type.value == "tv" %}
   {% set ms = device.media_state or "off" %}
   <div class="flex items-center justify-between py-1">
     <span class="px-3 py-1.5 rounded-lg text-sm font-medium capitalize
@@ -231,7 +254,7 @@
   </div>
   {% endif %}
 
-  {% if device.type.value != "tv" %}
+  {% if device.type.value not in ("tv", "sensor") %}
   {% include "partials/device_schedule.html" %}
   {% endif %}
 

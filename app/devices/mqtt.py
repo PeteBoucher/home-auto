@@ -42,6 +42,12 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.voltage = round(float(payload["voltage"]), 1)
         if "energy" in payload:
             device.energy = round(float(payload["energy"]), 3)
+        if "temperature" in payload:
+            device.sensor_temperature = round(float(payload["temperature"]), 1)
+        if "humidity" in payload:
+            device.humidity = round(float(payload["humidity"]), 1)
+        if "battery" in payload:
+            device.battery = int(payload["battery"])
         session.add(device)
         if any(k in payload for k in ("power", "voltage", "current")):
             session.add(PowerSample(
@@ -55,6 +61,9 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             "state": device.state, "brightness": device.brightness, "online": device.online,
             "power": device.power, "current": device.current,
             "voltage": device.voltage, "energy": device.energy,
+            "sensor_temperature": device.sensor_temperature,
+            "humidity": device.humidity,
+            "battery": device.battery,
         }
 
 

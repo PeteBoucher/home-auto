@@ -28,6 +28,13 @@ class TestDashboard:
         assert "Test Bulb" in resp.text
         assert "Living Room Socket" in resp.text
 
+    def test_sensor_card_shows_readings(self, client, z2m_sensor):
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert "Bedroom Sensor" in resp.text
+        assert "21.5°" in resp.text
+        assert "55.2%" in resp.text
+
 
 class TestTuyaCommands:
     def test_toggle_on(self, client, tuya_bulb):

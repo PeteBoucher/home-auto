@@ -16,6 +16,7 @@ class DeviceType(str, Enum):
     bulb = "bulb"
     ac = "ac"
     tv = "tv"
+    sensor = "sensor"
 
 
 class Integration(str, Enum):
@@ -52,6 +53,9 @@ class Device(SQLModel, table=True):
     current: Optional[float] = None     # plugs with monitoring: amps
     voltage: Optional[float] = None     # plugs with monitoring: volts
     energy: Optional[float] = None      # plugs with monitoring: kWh cumulative
+    sensor_temperature: Optional[float] = None  # sensors: ambient °C
+    humidity: Optional[float] = None            # sensors: relative humidity %
+    battery: Optional[int] = None               # battery-powered devices: %
 
 
 class Schedule(SQLModel, table=True):

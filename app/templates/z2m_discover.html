@@ -77,6 +77,7 @@ zigbee2mqtt</pre>
         >
           <option value="plug" {% if d._type_guess == "plug" %}selected{% endif %}>Plug</option>
           <option value="bulb" {% if d._type_guess == "bulb" %}selected{% endif %}>Bulb</option>
+          <option value="sensor" {% if d._type_guess == "sensor" %}selected{% endif %}>Sensor</option>
         </select>
       </div>
       <div class="dimmable-row flex items-center gap-2 {% if d._type_guess != 'bulb' %}hidden{% endif %}">
