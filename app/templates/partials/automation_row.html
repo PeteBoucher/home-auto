@@ -8,6 +8,12 @@
     <p class="text-xs text-gray-500 mt-0.5">
       {% if auto.trigger_type == 'time' %}
         Every day at {{ auto.trigger_time }}
+      {% elif auto.trigger_type == 'sun' %}
+        {% set off = auto.trigger_sun_offset or 0 %}
+        {% if off == 0 %}At {{ auto.trigger_sun_event }}
+        {% elif off > 0 %}{{ off }} min after {{ auto.trigger_sun_event }}
+        {% else %}{{ -off }} min before {{ auto.trigger_sun_event }}
+        {% endif %}
       {% else %}
         When <span class="font-medium">{{ tdev.name if tdev else 'unknown device' }}</span>
         {{ field_labels.get(auto.trigger_field, auto.trigger_field) }}

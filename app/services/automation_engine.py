@@ -1,11 +1,15 @@
 import asyncio
 import logging
+import os
+from datetime import datetime, timedelta
+
 from sqlmodel import Session, select
 
 from app.db import engine
 from app.devices.models import Automation, Device, Event, Integration, TriggerType
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
+from app.services.weather import get_sun_times
 
 log = logging.getLogger(__name__)
 
@@ -147,16 +151,62 @@ def load_time_automations() -> None:
         _load_time_job(auto)
 
 
-def apply_automation(automation: Automation) -> None:
+async def refresh_sun_jobs() -> None:
+    """Recompute today's sunrise/sunset and (re)schedule sun-triggered automations.
+
+    Run daily (times drift a bit each day) and whenever a sun automation is
+    created, edited, toggled, so job times stay in sync with the actual rules.
+    """
+    from app.services.scheduler import scheduler
+
+    with Session(engine) as session:
+        automations = list(session.exec(
+            select(Automation).where(Automation.trigger_type == TriggerType.sun)
+        ).all())
+
+    sunrise = sunset = None
+    if any(a.enabled for a in automations):
+        lat = float(os.getenv("LAT", "0"))
+        lon = float(os.getenv("LON", "0"))
+        if lat == 0 and lon == 0:
+            log.warning("LAT/LON not configured — skipping sun-trigger scheduling")
+        else:
+            try:
+                sunrise, sunset = await get_sun_times(lat, lon)
+            except Exception as exc:
+                log.warning("Sun times fetch failed: %s", exc)
+
+    now = datetime.now()
+    for auto in automations:
+        job_id = f"auto_sun_{auto.id}"
+        target = None
+        if auto.enabled and sunrise and sunset:
+            base = sunrise if auto.trigger_sun_event == "sunrise" else sunset
+            target = base + timedelta(minutes=auto.trigger_sun_offset or 0)
+        if target and target > now:
+            scheduler.add_job(
+                _fire_by_id, "date", run_date=target,
+                id=job_id, args=[auto.id], replace_existing=True,
+            )
+        else:
+            existing = scheduler.get_job(job_id)
+            if existing:
+                existing.remove()
+
+
+async def apply_automation(automation: Automation) -> None:
     if automation.trigger_type == TriggerType.time:
         _load_time_job(automation)
+    elif automation.trigger_type == TriggerType.sun:
+        await refresh_sun_jobs()
     else:
         _last_eval.pop(automation.id, None)
 
 
 def remove_automation(automation_id: int) -> None:
     from app.services.scheduler import scheduler
-    job = scheduler.get_job(f"auto_{automation_id}")
-    if job:
-        job.remove()
+    for job_id in (f"auto_{automation_id}", f"auto_sun_{automation_id}"):
+        job = scheduler.get_job(job_id)
+        if job:
+            job.remove()
     _last_eval.pop(automation_id, None)

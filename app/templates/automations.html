@@ -25,6 +25,7 @@ function updateTriggerFields() {
   const type = document.getElementById('trigger_type')?.value;
   if (!type) return;
   document.getElementById('time-fields').style.display = type === 'time' ? '' : 'none';
+  document.getElementById('sun-fields').style.display = type === 'sun' ? '' : 'none';
   document.getElementById('state-fields').style.display = type === 'device_state' ? '' : 'none';
 }
 

@@ -33,6 +33,7 @@
     <select name="trigger_type" id="trigger_type" onchange="updateTriggerFields()"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
       <option value="time" {% if ttype == 'time' %}selected{% endif %}>Time of day</option>
+      <option value="sun" {% if ttype == 'sun' %}selected{% endif %}>Sunrise / Sunset</option>
       <option value="device_state" {% if ttype == 'device_state' %}selected{% endif %}>Device state changes</option>
     </select>
 
@@ -41,6 +42,21 @@
       <input type="time" name="trigger_time"
              value="{{ auto.trigger_time or '' }}"
              class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+    </div>
+
+    <!-- Sun trigger -->
+    <div id="sun-fields" class="space-y-2" {% if ttype != 'sun' %}style="display:none"{% endif %}>
+      <select name="trigger_sun_event"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+        <option value="sunrise" {% if is_edit and auto.trigger_sun_event == 'sunrise' %}selected{% endif %}>Sunrise</option>
+        <option value="sunset" {% if not is_edit or auto.trigger_sun_event == 'sunset' %}selected{% endif %}>Sunset</option>
+      </select>
+      <div class="flex items-center gap-2">
+        <input type="number" name="trigger_sun_offset"
+               value="{{ auto.trigger_sun_offset if is_edit and auto.trigger_sun_offset is not none else 0 }}"
+               class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <span class="text-xs text-gray-400">minutes offset (negative = before, positive = after)</span>
+      </div>
     </div>
 
     <!-- Device state trigger -->

@@ -20,6 +20,8 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN current REAL",
             "ALTER TABLE device ADD COLUMN voltage REAL",
             "ALTER TABLE device ADD COLUMN energy REAL",
+            "ALTER TABLE automation ADD COLUMN trigger_sun_event TEXT",
+            "ALTER TABLE automation ADD COLUMN trigger_sun_offset INTEGER",
         ]:
             try:
                 conn.execute(text(stmt))

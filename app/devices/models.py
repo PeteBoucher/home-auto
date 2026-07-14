@@ -8,6 +8,7 @@ from sqlmodel import Field, SQLModel, Relationship
 class TriggerType(str, Enum):
     time = "time"
     device_state = "device_state"
+    sun = "sun"
 
 
 class DeviceType(str, Enum):
@@ -73,6 +74,8 @@ class Automation(SQLModel, table=True):
     trigger_field: Optional[str] = None                                      # "state", "brightness", "temperature"
     trigger_operator: Optional[str] = None                                   # "eq", "ne", "gt", "lt"
     trigger_value: Optional[str] = None
+    trigger_sun_event: Optional[str] = None                                  # "sunrise" or "sunset" — sun triggers
+    trigger_sun_offset: Optional[int] = None                                 # minutes; negative = before, positive = after
 
     # Action
     action_device_id: int = Field(foreign_key="device.id")

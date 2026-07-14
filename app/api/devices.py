@@ -12,6 +12,7 @@ from app.devices.models import Device, DeviceType, Integration, PowerSample, Sch
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
+from app.devices import firetv as firetv_client
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
 from app.templating import templates
@@ -311,6 +312,17 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         session.commit()
         session.refresh(device)
 
+    schedule = _get_schedule(device.id, session)
+    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule})
+
+
+@router.post("/{device_id}/key", response_class=HTMLResponse)
+async def send_key(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device or device.integration != Integration.firetv:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    await firetv_client.send_key(str(form.get("action", "")))
     schedule = _get_schedule(device.id, session)
     return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule})
 

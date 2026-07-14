@@ -35,6 +35,9 @@ async def _parse_form(request: Request, auto: Automation | None = None) -> Autom
     auto.trigger_field = str(form.get("trigger_field", "")) or None
     auto.trigger_operator = str(form.get("trigger_operator", "eq")) or "eq"
     auto.trigger_value = str(form.get("trigger_value", "")) or None
+    auto.trigger_sun_event = str(form.get("trigger_sun_event", "")) or None
+    raw_offset = form.get("trigger_sun_offset")
+    auto.trigger_sun_offset = int(str(raw_offset)) if raw_offset not in (None, "") else 0
     auto.action_device_id = int(str(form.get("action_device_id", 0)))
     auto.action_type = str(form.get("action_type", "set_state_on"))
     auto.action_value = str(form.get("action_value", "")) or None
@@ -77,7 +80,7 @@ async def create_automation(request: Request, session: SessionDep):
     session.add(auto)
     session.commit()
     session.refresh(auto)
-    apply_automation(auto)
+    await apply_automation(auto)
     row = _render_row(request, auto, session)
     return HTMLResponse(row + '\n<div id="automation-form" hx-swap-oob="innerHTML"></div>')
 
@@ -91,7 +94,7 @@ async def toggle_automation(auto_id: int, request: Request, session: SessionDep)
     session.add(auto)
     session.commit()
     session.refresh(auto)
-    apply_automation(auto)
+    await apply_automation(auto)
     return HTMLResponse(_render_row(request, auto, session))
 
 
@@ -115,6 +118,6 @@ async def update_automation(auto_id: int, request: Request, session: SessionDep)
     session.add(auto)
     session.commit()
     session.refresh(auto)
-    apply_automation(auto)
+    await apply_automation(auto)
     row = _render_row(request, auto, session)
     return HTMLResponse(row + '\n<div id="automation-form" hx-swap-oob="innerHTML"></div>')

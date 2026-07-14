@@ -13,6 +13,33 @@ log = logging.getLogger(__name__)
 
 _ADB_KEY = Path("firetv.adbkey")
 _last_state: dict[int, dict] = {}
+_ftv = None  # live androidtv connection, set by run() while connected
+
+_KEY_ACTIONS = {
+    "play_pause": "media_play_pause",
+    "back": "back",
+    "home": "home",
+    "up": "up",
+    "down": "down",
+    "left": "left",
+    "right": "right",
+    "enter": "enter",
+    "volume_up": "volume_up",
+    "volume_down": "volume_down",
+    "mute": "mute_volume",
+}
+
+
+async def send_key(action: str) -> bool:
+    method_name = _KEY_ACTIONS.get(action)
+    if not method_name or _ftv is None or not _ftv.available:
+        return False
+    try:
+        await getattr(_ftv, method_name)()
+        return True
+    except Exception as exc:
+        log.error("Fire TV key '%s' failed: %s", action, exc)
+        return False
 
 
 def _ensure_adbkey() -> None:
@@ -62,6 +89,7 @@ async def run() -> None:
     _ensure_adbkey()
     device = _get_or_create_device(host)
 
+    global _ftv
     while True:
         try:
             signer = await ADBPythonAsync.load_adbkey(str(_ADB_KEY))
@@ -71,6 +99,7 @@ async def run() -> None:
                 raise ConnectionError(f"ADB connect failed to {host}:5555")
 
             log.warning("Fire TV connected: %s", host)
+            _ftv = ftv
 
             while True:
                 state, current_app, _, _ = await ftv.update()
@@ -88,5 +117,6 @@ async def run() -> None:
 
         except Exception as exc:
             log.error("Fire TV error, reconnecting in 30s: %s", exc)
+            _ftv = None
             _save_state(device.id, "off", "", False)
             await asyncio.sleep(30)

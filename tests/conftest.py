@@ -63,6 +63,22 @@ def z2m_plug_fixture(session):
     return device
 
 
+@pytest.fixture(name="firetv_device")
+def firetv_device_fixture(session):
+    device = Device(
+        name="Fire TV",
+        device_id="192.168.x.x",
+        type=DeviceType.tv,
+        integration=Integration.firetv,
+        online=True,
+        media_state="paused",
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 @pytest.fixture(name="client")
 def client_fixture(engine):
     from app.db import get_session

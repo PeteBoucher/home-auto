@@ -124,6 +124,27 @@ class TestZ2MCommands:
         assert z2m_plug.state is True
 
 
+class TestFireTVKeys:
+    def test_sends_key_action(self, client, firetv_device):
+        with patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=True)) as mock_key:
+            resp = client.post(f"/devices/{firetv_device.id}/key", data={"action": "play_pause"})
+        assert resp.status_code == 200
+        mock_key.assert_awaited_once_with("play_pause")
+
+    def test_offline_device_returns_card_without_raising(self, client, firetv_device):
+        with patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=False)):
+            resp = client.post(f"/devices/{firetv_device.id}/key", data={"action": "volume_up"})
+        assert resp.status_code == 200
+
+    def test_non_firetv_device_returns_404(self, client, z2m_plug):
+        resp = client.post(f"/devices/{z2m_plug.id}/key", data={"action": "home"})
+        assert resp.status_code == 404
+
+    def test_unknown_device_returns_404(self, client):
+        resp = client.post("/devices/9999/key", data={"action": "home"})
+        assert resp.status_code == 404
+
+
 class TestSchedule:
     def _mock_apply(self):
         return patch("app.api.devices.apply_schedule", new=MagicMock())

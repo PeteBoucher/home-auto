@@ -9,6 +9,7 @@ load_dotenv()
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import delete
 from sqlmodel import Session, select
 
@@ -25,7 +26,7 @@ from app.api import history as history_router
 from app.api import network as network_router
 from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
-from app.services.automation_engine import load_time_automations
+from app.services.automation_engine import load_time_automations, refresh_sun_jobs
 from app.services.tuya_poller import poll_tuya_devices
 
 def _prune_power_samples() -> None:
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.add_job(poll_tuya_devices, "interval", seconds=30, next_run_time=datetime.now())
     scheduler.add_job(_prune_power_samples, "interval", hours=24)
+    scheduler.add_job(refresh_sun_jobs, "interval", hours=24, next_run_time=datetime.now())
     scheduler.start()
     init_schedules()
     load_time_automations()
@@ -59,6 +61,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="home-auto", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(devices_router.router)
 app.include_router(alerts_router.router)
 app.include_router(automations_router.router)
