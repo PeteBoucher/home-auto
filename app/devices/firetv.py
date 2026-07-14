@@ -11,6 +11,8 @@ from app.services.automation_engine import check_state_triggers
 
 log = logging.getLogger(__name__)
 
+ENABLED: bool = os.getenv("FIRETV_ENABLED", "false").lower() == "true"
+
 _ADB_KEY = Path("firetv.adbkey")
 _last_state: dict[int, dict] = {}
 _ftv = None  # live androidtv connection, set by run() while connected

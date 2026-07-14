@@ -319,7 +319,7 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
 @router.post("/{device_id}/key", response_class=HTMLResponse)
 async def send_key(device_id: int, request: Request, session: SessionDep):
     device = session.get(Device, device_id)
-    if not device or device.integration != Integration.firetv:
+    if not firetv_client.ENABLED or not device or device.integration != Integration.firetv:
         raise HTTPException(status_code=404)
     form = await request.form()
     await firetv_client.send_key(str(form.get("action", "")))

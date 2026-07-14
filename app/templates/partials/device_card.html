@@ -25,6 +25,7 @@
     {% endif %}
   </div>
 
+  {% if firetv_enabled %}
   {% set key_target = "#device-" ~ device.id %}
   <div class="flex items-center justify-between gap-2">
     <button
@@ -66,6 +67,7 @@
       class="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors {% if not device.online %}opacity-40 cursor-not-allowed{% endif %}"
     ><i class="bi bi-volume-up-fill"></i></button>
   </div>
+  {% endif %}{# firetv_enabled #}
   {% else %}
   <button
     hx-post="/devices/{{ device.id }}/command"

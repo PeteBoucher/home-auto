@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     init_db()
     await hon_client.start()
     mqtt_task = asyncio.create_task(mqtt_client.run())
-    firetv_task = asyncio.create_task(firetv_client.run())
+    firetv_task = asyncio.create_task(firetv_client.run()) if firetv_client.ENABLED else None
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.add_job(poll_tuya_devices, "interval", seconds=30, next_run_time=datetime.now())
     scheduler.add_job(_prune_power_samples, "interval", hours=24)
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     load_time_automations()
     yield
     scheduler.shutdown()
-    for task in (mqtt_task, firetv_task):
+    for task in filter(None, (mqtt_task, firetv_task)):
         task.cancel()
         try:
             await task

@@ -126,13 +126,15 @@ class TestZ2MCommands:
 
 class TestFireTVKeys:
     def test_sends_key_action(self, client, firetv_device):
-        with patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=True)) as mock_key:
+        with patch("app.api.devices.firetv_client.ENABLED", True), \
+             patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=True)) as mock_key:
             resp = client.post(f"/devices/{firetv_device.id}/key", data={"action": "play_pause"})
         assert resp.status_code == 200
         mock_key.assert_awaited_once_with("play_pause")
 
     def test_offline_device_returns_card_without_raising(self, client, firetv_device):
-        with patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=False)):
+        with patch("app.api.devices.firetv_client.ENABLED", True), \
+             patch("app.api.devices.firetv_client.send_key", new=AsyncMock(return_value=False)):
             resp = client.post(f"/devices/{firetv_device.id}/key", data={"action": "volume_up"})
         assert resp.status_code == 200
 
