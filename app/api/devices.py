@@ -452,7 +452,7 @@ async def climate_chart_page(device_id: int, request: Request, session: SessionD
 
 
 @router.get("/{device_id}/climate-chart/data")
-async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Query(default=168, ge=1, le=168)):
+async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Query(default=6, ge=1, le=168)):
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     samples = session.exec(
         select(ClimateSample)
