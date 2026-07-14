@@ -6,7 +6,7 @@ import aiomqtt
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Device, Integration, PowerSample
+from app.devices.models import Device, DeviceType, Integration, PowerSample
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,10 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
         ).first()
         if not device:
             return None
-        device.online = online
+        # Sleepy sensors go "offline" between readings per the availability heartbeat,
+        # but are functioning — only let a real reading (online=True) update their status.
+        if online or device.type != DeviceType.sensor:
+            device.online = online
         if "state" in payload:
             device.state = str(payload["state"]).upper() == "ON"
         if "brightness" in payload:

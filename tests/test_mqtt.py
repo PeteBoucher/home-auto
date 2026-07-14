@@ -103,6 +103,14 @@ class TestApplyState:
         assert d.humidity == 55.2
         assert d.battery == 86
 
+    def test_sensor_not_marked_offline_by_availability(self, engine, session, z2m_sensor):
+        # Availability heartbeat must not flip a sensor offline between readings
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 21.5, "humidity": 55.2})
+            _apply_state("bedroom_sensor", {}, online=False)
+        d = _refresh(session, z2m_sensor)
+        assert d.online is True
+
     def test_sensor_temperature_rounded(self, engine, session, z2m_sensor):
         with patch("app.devices.mqtt.engine", engine):
             _apply_state("bedroom_sensor", {"temperature": 21.567, "humidity": 55.234})
