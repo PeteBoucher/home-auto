@@ -46,6 +46,66 @@ A Python-based web app to unify control and automation of home devices currently
 - **Fire TV** — ADB polling every 5s; `media_state` and `app_id` as automation trigger fields; device card shows playback state. Only works on Android-based Fire OS devices — see Backlog blocker for Vega OS.
 - **Sunrise/sunset automation triggers** — new `TriggerType.sun`; sun times fetched daily from Open-Meteo (`app/services/weather.py get_sun_times()`, no API key needed) using `LAT`/`LON` env vars, same location config the rain automation already used. Automations pick sunrise or sunset plus a +/- minute offset; `refresh_sun_jobs()` in `automation_engine.py` reschedules one-shot APScheduler jobs daily and whenever a sun rule is created/edited/toggled. Silently no-ops if `LAT`/`LON` aren't set, same as the rain check.
 
+## File Structure
+
+```text
+app/
+├── main.py                        # FastAPI app, lifespan, router mounts
+├── db.py                          # SQLite engine, init_db() with ALTER TABLE migrations
+├── templating.py                  # Jinja2 templates instance + globals (firetv_enabled)
+│
+├── api/
+│   ├── devices.py                 # All device HTTP routes (toggle, command, schedule, import, charts)
+│   ├── automations.py             # /automations CRUD
+│   ├── alerts.py                  # /alert red-alert endpoints
+│   ├── history.py                 # /history event log
+│   └── network.py                 # /network LAN scan + WAN check (_check_wan via TCP to 1.1.1.1:53)
+│
+├── devices/
+│   ├── models.py                  # SQLModel tables: Device, Schedule, Automation, Event, PowerSample, ClimateSample
+│   ├── mqtt.py                    # aiomqtt listener, _apply_state(), ClimateSample/PowerSample writes, Z2M state.json seed
+│   ├── tuya.py                    # tinytuya LAN commands
+│   ├── hon.py                     # pyhOn Haier cloud API
+│   └── firetv.py                  # androidtv ADB polling (ENABLED flag, off by default)
+│
+├── services/
+│   ├── automation_engine.py       # check_state_triggers(), fire_action(), refresh_sun_jobs()
+│   ├── automations.py             # load_time_automations(), APScheduler job wiring
+│   ├── scheduler.py               # apply_schedule(), remove_schedule() for device on/off timers
+│   ├── red_alert.py               # flash-all-bulbs red alert with persistent Tuya sockets
+│   ├── tuya_poller.py             # background Tuya state polling
+│   └── weather.py                 # Open-Meteo rain check + get_sun_times()
+│
+├── static/                        # All assets bundled locally (no CDN — works offline)
+│   ├── tailwind.js                # Tailwind Play CDN runtime
+│   ├── htmx.min.js
+│   ├── bootstrap-icons.min.css + fonts/
+│   ├── chart.umd.min.js + chartjs-adapter-date-fns.bundle.min.js
+│   └── manifest.json + icons (PWA)
+│
+└── templates/
+    ├── base.html                  # Shared layout, nav, PWA meta tags
+    ├── index.html                 # Dashboard (device grid + RoachCam)
+    ├── automations.html           # Automation rule list + form
+    ├── history.html               # Event log
+    ├── network.html               # LAN map page
+    ├── climate_chart.html         # Temperature/humidity history chart
+    ├── power_chart.html           # Plug power/voltage/current history chart
+    ├── z2m_discover.html          # Zigbee2MQTT device import
+    ├── add_device.html            # Manual Tuya device add form
+    └── partials/
+        ├── device_card.html       # Per-device card (plug/bulb/ac/tv/sensor variants)
+        ├── device_grid.html       # Full device grid (HTMX polling target)
+        ├── device_schedule.html   # On/off timer section inside card
+        ├── device_name.html       # Inline-editable device name
+        ├── network_devices.html   # WAN spine + LAN device grid + Zigbee mesh (HTMX swap target)
+        ├── automation_form.html   # New/edit automation form
+        ├── automation_row.html    # Single automation row
+        ├── history_rows.html      # Event log rows
+        ├── red_alert_btn.html     # Red Alert / Stand Down toggle
+        └── rename_form.html       # Inline rename input
+```
+
 ## Backlog
 
 - **Rolling shutter / persiana** — new patio door has an external tubular-motor shutter. Best fit: Zigbee tubular motor (e.g. Zemismart ZM25TQ) via existing Zigbee2MQTT. Needs `DeviceType.cover`, `position` field, Z2M cover payload handling, open/stop/close card UI, `set_position` automation action.

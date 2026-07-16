@@ -1,3 +1,30 @@
+{# Spine: Internet → Router #}
+<div class="flex flex-col items-center mb-0">
+  <div class="w-14 h-14 rounded-full border-2 flex items-center justify-center
+    {% if wan_up %}border-gray-300 bg-gray-50{% else %}border-red-300 bg-red-50{% endif %}">
+    <i class="bi bi-globe text-2xl {% if wan_up %}text-gray-500{% else %}text-red-400{% endif %}"></i>
+  </div>
+  <p class="text-xs mt-1 {% if wan_up %}text-gray-500{% else %}text-red-400{% endif %}">Internet</p>
+
+  {% if wan_up %}
+  <div class="w-px h-6 bg-gray-300"></div>
+  {% else %}
+  <div class="flex flex-col items-center">
+    <div class="w-px h-2 bg-red-300"></div>
+    <div class="flex items-center gap-1 px-2 py-0.5 my-0.5 bg-red-100 rounded text-red-600 text-xs font-medium">
+      <i class="bi bi-x-circle-fill"></i> WAN down
+    </div>
+    <div class="w-px h-2 bg-red-300"></div>
+  </div>
+  {% endif %}
+
+  <div class="w-14 h-14 rounded-full border-2 border-gray-400 bg-gray-50 flex items-center justify-center">
+    <i class="bi bi-router-fill text-2xl text-gray-600"></i>
+  </div>
+  <p class="text-xs text-gray-500 mt-1 mb-1">Router</p>
+  <div class="w-px h-6 bg-gray-300"></div>
+</div>
+
 {% if not devices %}
 <p class="text-center text-gray-400 text-sm py-8">No devices found in ARP table.</p>
 {% else %}

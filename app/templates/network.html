@@ -4,7 +4,7 @@
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-bold text-gray-800">Network Map</h1>
     <button hx-get="/network/scan"
-            hx-target="#network-devices"
+            hx-target="#network-map"
             hx-swap="innerHTML"
             hx-indicator="#scan-spinner"
             class="flex items-center gap-2 border border-gray-300 text-gray-600 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors">
@@ -15,22 +15,7 @@
 
   <div class="bg-white rounded-xl shadow-sm p-6">
 
-    {# Spine: Internet → Router #}
-    <div class="flex flex-col items-center mb-0">
-      <div class="w-14 h-14 rounded-full border-2 border-gray-300 bg-gray-50 flex items-center justify-center">
-        <i class="bi bi-globe text-2xl text-gray-500"></i>
-      </div>
-      <p class="text-xs text-gray-500 mt-1 mb-1">Internet</p>
-      <div class="w-px h-6 bg-gray-300"></div>
-      <div class="w-14 h-14 rounded-full border-2 border-gray-400 bg-gray-50 flex items-center justify-center">
-        <i class="bi bi-router-fill text-2xl text-gray-600"></i>
-      </div>
-      <p class="text-xs text-gray-500 mt-1 mb-1">Router</p>
-      <div class="w-px h-6 bg-gray-300"></div>
-    </div>
-
-    {# Devices #}
-    <div id="network-devices">
+    <div id="network-map">
       {% include "partials/network_devices.html" %}
     </div>
 

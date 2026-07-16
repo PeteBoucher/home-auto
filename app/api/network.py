@@ -44,6 +44,20 @@ def _icon(hostname: str, ha_type: str | None, is_gateway: bool, is_self: bool) -
     return "pc-display"
 
 
+async def _check_wan() -> bool:
+    """TCP connect to 1.1.1.1:53 — fast, no DNS needed, reliable WAN indicator."""
+    try:
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection("1.1.1.1", 53),
+            timeout=2.0,
+        )
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except Exception:
+        return False
+
+
 async def _get_gateway() -> tuple[str, str]:
     """Returns (gateway_ip, self_ip)."""
     proc = await asyncio.create_subprocess_exec(
@@ -237,13 +251,13 @@ def zigbee_devices(session: Session) -> list[dict]:
 
 @router.get("/network", response_class=HTMLResponse)
 async def network_page(request: Request, session: SessionDep):
-    devices = await scan(session)
+    devices, wan_up = await asyncio.gather(scan(session), _check_wan())
     zigbee = zigbee_devices(session)
-    return templates.TemplateResponse(request, "network.html", {"devices": devices, "zigbee": zigbee})
+    return templates.TemplateResponse(request, "network.html", {"devices": devices, "zigbee": zigbee, "wan_up": wan_up})
 
 
 @router.get("/network/scan", response_class=HTMLResponse)
 async def network_scan(request: Request, session: SessionDep):
-    devices = await scan(session)
+    devices, wan_up = await asyncio.gather(scan(session), _check_wan())
     zigbee = zigbee_devices(session)
-    return templates.TemplateResponse(request, "partials/network_devices.html", {"devices": devices, "zigbee": zigbee})
+    return templates.TemplateResponse(request, "partials/network_devices.html", {"devices": devices, "zigbee": zigbee, "wan_up": wan_up})
