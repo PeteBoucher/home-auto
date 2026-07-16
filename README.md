@@ -7,17 +7,19 @@ A local-first home automation dashboard running on a Raspberry Pi. Controls smar
 | Integration | Protocol | Devices |
 |---|---|---|
 | Tuya LAN | `tinytuya` (direct LAN, v3.3/v3.5) | Smart bulbs (RGB + white), smart plugs |
-| Zigbee2MQTT | MQTT over local broker | Zigbee sockets, bulbs |
+| Zigbee2MQTT | MQTT over local broker | Zigbee sockets, bulbs, temperature/humidity sensors |
 | hOn | pyhOn cloud API | Haier A/C (experimental) |
-| Fire TV | ADB over network | Amazon Fire TV Stick (monitoring) |
+| Fire TV | ADB over network | Amazon Fire TV Stick (monitoring, feature-flagged) |
 
 ## Features
 
 ### Dashboard
 
 - Live device cards with on/off toggle, brightness, colour temperature, and RGB colour picker for bulbs
+- Temperature and humidity sensor cards showing live readings, battery level, and a link to the climate history chart
 - Inline device rename
 - Served from local DB cache — loads instantly; HTMX auto-refreshes device state every 30 seconds
+- All JS/CSS assets bundled locally — dashboard works fully on LAN with no internet connection
 - [RoachCam](#roachcam) live MJPEG feed embedded when configured
 
 ### Evening timer
@@ -33,6 +35,7 @@ Create rules at `/automations` with time or device-state triggers and cross-devi
 | Type | Example |
 |---|---|
 | Time of day | Fire at 22:30 every day |
+| Sunrise / sunset | Fire 30 minutes after sunset |
 | Device state | When Zigbee plug turns on |
 | Fire TV media state | When Fire TV starts playing |
 | Fire TV app ID | When Netflix launches |
@@ -40,6 +43,14 @@ Create rules at `/automations` with time or device-state triggers and cross-devi
 **Actions:** turn on/off, set brightness, set colour temperature, set RGB colour.
 
 State triggers are edge-detected — the rule fires once on the False→True transition, not on every poll.
+
+### Temperature and humidity sensors
+
+Zigbee sensors (tested with Sonoff SNZB-02) are registered via the Z2M import page (`/devices/z2m`). Select **Sensor** as the device type when importing.
+
+The dashboard card shows live temperature, humidity, and battery level. A **Chart** link opens a history page with 1h / 6h / 24h / 7d lookback windows.
+
+Readings are stored in `ClimateSample` on every report from the sensor. On app restart, the last known values are seeded from Zigbee2MQTT's `state.json` so the card shows data immediately rather than waiting up to an hour for the next natural sensor report.
 
 ### Weather automation
 
@@ -148,6 +159,7 @@ LON=<your longitude>
 # Optional integrations
 ROACHCAM_URL=http://roachcam.local:8080
 FIRETV_HOST=<fire-tv-ip>
+FIRETV_ENABLED=false   # set to true to enable ADB polling and remote control buttons
 ```
 
 ### Deployment pipeline
@@ -174,10 +186,17 @@ sudo chmod 440 /etc/sudoers.d/home-auto-deploy
 
 Get a fresh `<runner-token>` from GitHub → repo Settings → Actions → Runners → New self-hosted runner.
 
-**Emergency manual deploy** (bypasses pipeline):
+**Emergency manual deploy** (bypasses pipeline — Pi needs internet access to `git fetch`):
 
 ```bash
 ssh pete@homeauto.local "cd /opt/home-auto && git fetch origin main && git reset --hard origin/main && sudo systemctl restart home-auto"
+```
+
+**Manual deploy without internet** (rsync from your Mac when the Pi has no WAN):
+
+```bash
+rsync -avz app/ pete@homeauto.local:/opt/home-auto/app/
+ssh pete@homeauto.local "sudo systemctl restart home-auto"
 ```
 
 ## Development
