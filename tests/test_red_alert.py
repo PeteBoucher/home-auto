@@ -32,7 +32,7 @@ class TestFlashZigbee:
     def setup_method(self):
         red_alert._stop.clear()
 
-    def test_publishes_on_then_off(self, zigbee_bulb):
+    def test_initial_command_turns_on_red(self, zigbee_bulb):
         with (
             patch("app.services.red_alert._FLASH_ON", 0.01),
             patch("app.services.red_alert._FLASH_OFF", 0.01),
@@ -44,6 +44,23 @@ class TestFlashZigbee:
         assert topics[0] == "zigbee2mqtt/dining_room_uplighter/set"
         assert payloads[0]["state"] == "ON"
         assert payloads[0]["color"] == {"hue": 0, "saturation": 100}
+        assert payloads[0]["brightness"] == 254
+
+    def test_fades_brightness_down_then_up(self, zigbee_bulb):
+        with (
+            patch("app.services.red_alert._FLASH_ON", 0.01),
+            patch("app.services.red_alert._FLASH_OFF", 0.01),
+            patch("app.services.red_alert.mqtt_client.publish", new=AsyncMock()) as mock_pub,
+        ):
+            asyncio.run(red_alert._flash_zigbee(zigbee_bulb, 0, 100, duration=0.025))
+        payloads = [c.args[1] for c in mock_pub.call_args_list]
+        # payloads[0] is the initial full-on command; the pulse loop follows
+        fade_payloads = payloads[1:]
+        assert fade_payloads[0]["brightness"] == 0
+        assert fade_payloads[0]["transition"] == 0.01
+        assert "state" not in fade_payloads[0]
+        assert fade_payloads[1]["brightness"] == 254
+        assert fade_payloads[1]["transition"] == 0.01
 
     def test_stop_event_halts_flashing(self, zigbee_bulb):
         red_alert._stop.set()

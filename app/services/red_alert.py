@@ -47,19 +47,26 @@ async def _restore(bulbs: list[Device]) -> None:
 
 
 async def _flash_zigbee(bulb: Device, hue: int, saturation: int, duration: float) -> None:
+    """Pulse brightness up/down rather than toggling state.
+
+    A hard on/off cycle (like the Tuya persistent-socket flash) reads as an
+    erratic flicker on these bulbs instead of a clean flash, so red alert
+    fades brightness between full and off instead, using the same on/off
+    intervals as the Tuya cadence so both stay in sync.
+    """
+    if _stop.is_set():
+        return
     deadline = time.monotonic() + duration
-    # transition: 0 forces an instant snap rather than the bulb's default fade,
-    # so rapid flashing doesn't get smeared into a lingering blend of the two states.
-    on_payload = {"state": "ON", "color": {"hue": hue, "saturation": saturation}, "brightness": 254, "transition": 0}
-    off_payload = {"state": "OFF", "transition": 0}
     topic = f"{mqtt_client.PREFIX}/{bulb.device_id}/set"
+    await mqtt_client.publish(
+        topic, {"state": "ON", "color": {"hue": hue, "saturation": saturation}, "brightness": 254, "transition": 0}
+    )
+    dim = False
     while not _stop.is_set() and time.monotonic() < deadline:
-        await mqtt_client.publish(topic, on_payload)
-        await asyncio.sleep(_FLASH_ON)
-        if _stop.is_set() or time.monotonic() >= deadline:
-            break
-        await mqtt_client.publish(topic, off_payload)
-        await asyncio.sleep(_FLASH_OFF)
+        fade_time = _FLASH_OFF if not dim else _FLASH_ON
+        await mqtt_client.publish(topic, {"brightness": 0 if not dim else 254, "transition": fade_time})
+        await asyncio.sleep(fade_time)
+        dim = not dim
 
 
 async def _restore_zigbee(bulbs: list[Device]) -> None:
