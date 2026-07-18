@@ -39,6 +39,23 @@ def z2m_device_fixture(session, engine):
     return device
 
 
+@pytest.fixture(name="z2m_bulb")
+def z2m_bulb_fixture(session, engine):
+    device = Device(
+        name="Test Bulb",
+        device_id="test_bulb",
+        type=DeviceType.bulb,
+        integration=Integration.zigbee2mqtt,
+        online=True,
+        state=True,
+        dimmable=True,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 def _refresh(session, device):
     session.expire(device)
     return session.get(Device, device.id)
@@ -117,6 +134,24 @@ class TestApplyState:
         d = _refresh(session, z2m_sensor)
         assert d.sensor_temperature == 21.6
         assert d.humidity == 55.2
+
+    def test_color_temp_reported_as_pct(self, engine, session, z2m_bulb):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_bulb", {"color_temp": 153, "color_mode": "color_temp"})
+        d = _refresh(session, z2m_bulb)
+        assert d.color_temp == 100
+        assert d.color_mode == "white"
+
+    def test_color_hs_reported_as_rgb_hex(self, engine, session, z2m_bulb):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_bulb", {
+                "brightness": 254,
+                "color": {"hue": 0, "saturation": 100, "x": 0.7, "y": 0.3},
+                "color_mode": "hs",
+            })
+        d = _refresh(session, z2m_bulb)
+        assert d.color_rgb == "#ff0000"
+        assert d.color_mode == "colour"
 
     def test_ignores_non_z2m_device(self, engine, session):
         # A Tuya device with the same device_id should not be updated

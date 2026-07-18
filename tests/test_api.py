@@ -130,6 +130,37 @@ class TestZ2MCommands:
         assert z2m_plug.online is True
         assert z2m_plug.state is True
 
+    def test_color_temp_sent_as_mireds(self, client, z2m_bulb, session):
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"color_temp": "0"})
+        assert resp.status_code == 200
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/dining_room_uplighter/set", {"color_temp": 556}
+        )
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.color_temp == 0
+        assert z2m_bulb.color_mode == "white"
+
+    def test_color_rgb_sent_as_hue_saturation(self, client, z2m_bulb, session):
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"color_rgb": "#ff0000"})
+        assert resp.status_code == 200
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/dining_room_uplighter/set",
+            {"color": {"hue": 0, "saturation": 100}, "brightness": 254},
+        )
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.color_rgb == "#ff0000"
+        assert z2m_bulb.color_mode == "colour"
+
+    def test_color_mode_toggle_alone_does_not_publish(self, client, z2m_bulb, session):
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"color_mode": "colour"})
+        assert resp.status_code == 200
+        mock_pub.assert_not_awaited()
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.color_mode == "colour"
+
 
 class TestFireTVKeys:
     def test_sends_key_action(self, client, firetv_device):

@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from app.db import engine
 from app.devices.models import ClimateSample, Device, DeviceType, Integration, PowerSample
+from app.devices.zigbee_color import hs_to_rgb_hex, mireds_to_pct
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,15 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.state = str(payload["state"]).upper() == "ON"
         if "brightness" in payload:
             device.brightness = round(int(payload["brightness"]) / 2.54)
+        if "color_temp" in payload:
+            device.color_temp = mireds_to_pct(float(payload["color_temp"]))
+        if "color" in payload and isinstance(payload["color"], dict) and "hue" in payload["color"]:
+            device.color_rgb = hs_to_rgb_hex(
+                payload["color"]["hue"], payload["color"].get("saturation", 100),
+                round((device.brightness or 100) * 2.54),
+            )
+        if "color_mode" in payload and payload["color_mode"] in ("color_temp", "xy", "hs"):
+            device.color_mode = "white" if payload["color_mode"] == "color_temp" else "colour"
         if "power_on_behavior" in payload:
             device.power_on_behavior = str(payload["power_on_behavior"])
         if "overload_protection" in payload and isinstance(payload["overload_protection"], dict):

@@ -63,6 +63,26 @@ def z2m_plug_fixture(session):
     return device
 
 
+@pytest.fixture(name="z2m_bulb")
+def z2m_bulb_fixture(session):
+    device = Device(
+        name="Dining Room Uplighter",
+        device_id="dining_room_uplighter",
+        type=DeviceType.bulb,
+        integration=Integration.zigbee2mqtt,
+        online=True,
+        state=True,
+        dimmable=True,
+        brightness=100,
+        color_temp=50,
+        color_mode="white",
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 @pytest.fixture(name="z2m_sensor")
 def z2m_sensor_fixture(session):
     device = Device(

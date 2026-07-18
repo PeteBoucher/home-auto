@@ -13,6 +13,7 @@ from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.devices import firetv as firetv_client
+from app.devices.zigbee_color import pct_to_mireds, rgb_hex_to_hs_brightness
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
 from app.templating import templates
@@ -303,12 +304,27 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
             payload["state"] = "ON" if command["state"] else "OFF"
         if "brightness" in command:
             payload["brightness"] = round(command["brightness"] * 2.54)
-        await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
+        if "color_temp" in command:
+            payload["color_temp"] = pct_to_mireds(command["color_temp"])
+        if "color_rgb" in command:
+            hue, saturation, brightness = rgb_hex_to_hs_brightness(command["color_rgb"])
+            payload["color"] = {"hue": hue, "saturation": saturation}
+            payload["brightness"] = brightness
+        if payload:
+            await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
         # Optimistic update — real confirmation arrives via MQTT subscription
         if "state" in command:
             device.state = command["state"]
         if "brightness" in command:
             device.brightness = command["brightness"]
+        if "color_temp" in command:
+            device.color_temp = command["color_temp"]
+            device.color_mode = "white"
+        if "color_rgb" in command:
+            device.color_rgb = command["color_rgb"]
+            device.color_mode = "colour"
+        if "color_mode" in command and "color_temp" not in command and "color_rgb" not in command:
+            device.color_mode = command["color_mode"]
         device.online = True
         session.add(device)
         session.commit()
