@@ -100,7 +100,7 @@ class TestRestoreZigbee:
         ):
             asyncio.run(red_alert._restore_zigbee([zigbee_bulb]))
         payload = mock_pub.call_args.args[1]
-        assert payload == {"state": "OFF"}
+        assert payload == {"state": "OFF", "transition": 0}
 
     def test_no_snapshot_is_noop(self, engine, session, zigbee_bulb):
         with (

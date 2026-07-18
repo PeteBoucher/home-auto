@@ -48,8 +48,10 @@ async def _restore(bulbs: list[Device]) -> None:
 
 async def _flash_zigbee(bulb: Device, hue: int, saturation: int, duration: float) -> None:
     deadline = time.monotonic() + duration
-    on_payload = {"state": "ON", "color": {"hue": hue, "saturation": saturation}, "brightness": 254}
-    off_payload = {"state": "OFF"}
+    # transition: 0 forces an instant snap rather than the bulb's default fade,
+    # so rapid flashing doesn't get smeared into a lingering blend of the two states.
+    on_payload = {"state": "ON", "color": {"hue": hue, "saturation": saturation}, "brightness": 254, "transition": 0}
+    off_payload = {"state": "OFF", "transition": 0}
     topic = f"{mqtt_client.PREFIX}/{bulb.device_id}/set"
     while not _stop.is_set() and time.monotonic() < deadline:
         await mqtt_client.publish(topic, on_payload)
@@ -65,7 +67,7 @@ async def _restore_zigbee(bulbs: list[Device]) -> None:
         snap = _saved_zigbee.pop(bulb.id, None)
         if snap is None:
             continue
-        payload: dict = {"state": "ON" if snap["state"] else "OFF"}
+        payload: dict = {"state": "ON" if snap["state"] else "OFF", "transition": 0}
         if snap["state"]:
             if snap["color_mode"] == "colour" and snap["color_rgb"]:
                 hue, saturation, brightness = rgb_hex_to_hs_brightness(snap["color_rgb"])
