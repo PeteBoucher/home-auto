@@ -5,7 +5,7 @@ import pytest
 from sqlmodel import Session, select
 
 from app.devices.models import Device, DeviceType, Integration
-from app.devices.mqtt import _apply_state
+from app.devices.mqtt import _apply_state, get_zigbee_bulbs
 
 
 @pytest.fixture(name="z2m_sensor")
@@ -171,3 +171,46 @@ class TestApplyState:
         # _apply_state filters by integration == zigbee2mqtt, so tuya device unchanged
         session.expire(tuya)
         assert session.get(Device, tuya.id).state is False
+
+
+class TestGetZigbeeBulbs:
+    def test_returns_dimmable_zigbee_bulb(self, engine, session, z2m_bulb):
+        with patch("app.devices.mqtt.engine", engine):
+            bulbs = get_zigbee_bulbs()
+        assert [b.id for b in bulbs] == [z2m_bulb.id]
+
+    def test_excludes_non_dimmable_bulb(self, engine, session):
+        device = Device(
+            name="Plain Bulb",
+            device_id="plain_bulb",
+            type=DeviceType.bulb,
+            integration=Integration.zigbee2mqtt,
+            online=True,
+            dimmable=False,
+        )
+        session.add(device)
+        session.commit()
+        with patch("app.devices.mqtt.engine", engine):
+            bulbs = get_zigbee_bulbs()
+        assert bulbs == []
+
+    def test_excludes_non_bulb_device(self, engine, session, z2m_device):
+        with patch("app.devices.mqtt.engine", engine):
+            bulbs = get_zigbee_bulbs()
+        assert bulbs == []
+
+    def test_excludes_tuya_bulb(self, engine, session):
+        device = Device(
+            name="Tuya Bulb",
+            device_id="tuya_bulb_001",
+            local_key="key",
+            ip_address="192.168.x.x",
+            type=DeviceType.bulb,
+            integration=Integration.tuya,
+            dimmable=True,
+        )
+        session.add(device)
+        session.commit()
+        with patch("app.devices.mqtt.engine", engine):
+            bulbs = get_zigbee_bulbs()
+        assert bulbs == []

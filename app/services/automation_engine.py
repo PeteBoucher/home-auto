@@ -9,6 +9,7 @@ from app.db import engine
 from app.devices.models import Automation, Device, Event, Integration, TriggerType
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
+from app.services import red_alert
 from app.services.weather import get_sun_times
 
 log = logging.getLogger(__name__)
@@ -96,6 +97,11 @@ def _eval_condition(field: str, operator: str, trigger_value: str, state: dict) 
 
 
 async def check_state_triggers(device_id: int, state: dict) -> None:
+    if red_alert.is_active():
+        # Red alert flashes a bulb's state rapidly; state-trigger automations
+        # watching that bulb would otherwise fire on every flash cycle and
+        # cascade into unrelated devices for the duration of the alert.
+        return
     with Session(engine) as session:
         automations = list(session.exec(
             select(Automation).where(

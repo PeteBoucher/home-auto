@@ -119,6 +119,76 @@ class TestRainAutomation:
         mock_cmd.assert_not_awaited()
 
 
+class TestCheckStateTriggersDuringRedAlert:
+    @pytest.fixture
+    def trigger_device(self, session):
+        d = Device(
+            name="Living Room Socket",
+            device_id="living_room_socket",
+            type=DeviceType.plug,
+            integration=Integration.zigbee2mqtt,
+            online=True,
+            state=False,
+        )
+        session.add(d)
+        session.commit()
+        session.refresh(d)
+        return d
+
+    @pytest.fixture
+    def action_device(self, session):
+        d = Device(
+            name="Dining Room Uplighter",
+            device_id="dining_room_uplighter",
+            type=DeviceType.bulb,
+            integration=Integration.zigbee2mqtt,
+            online=True,
+            state=False,
+        )
+        session.add(d)
+        session.commit()
+        session.refresh(d)
+        return d
+
+    @pytest.fixture
+    def sync_automation(self, session, trigger_device, action_device):
+        a = Automation(
+            name="Sync on",
+            enabled=True,
+            trigger_type=TriggerType.device_state,
+            trigger_device_id=trigger_device.id,
+            trigger_field="state",
+            trigger_operator="eq",
+            trigger_value="true",
+            action_device_id=action_device.id,
+            action_type="set_state_on",
+        )
+        session.add(a)
+        session.commit()
+        session.refresh(a)
+        return a
+
+    def test_fires_normally_when_alert_inactive(self, engine, trigger_device, sync_automation):
+        auto_engine._last_eval.clear()
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.red_alert.is_active", return_value=False),
+            patch("app.services.automation_engine.mqtt_client.publish", new=AsyncMock()) as mock_pub,
+        ):
+            asyncio.run(auto_engine.check_state_triggers(trigger_device.id, {"state": True}))
+        mock_pub.assert_awaited_once()
+
+    def test_suppressed_while_alert_active(self, engine, trigger_device, sync_automation):
+        auto_engine._last_eval.clear()
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.red_alert.is_active", return_value=True),
+            patch("app.services.automation_engine.mqtt_client.publish", new=AsyncMock()) as mock_pub,
+        ):
+            asyncio.run(auto_engine.check_state_triggers(trigger_device.id, {"state": True}))
+        mock_pub.assert_not_awaited()
+
+
 class TestSunTriggers:
     def setup_method(self):
         from app.services.scheduler import scheduler

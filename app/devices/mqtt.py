@@ -169,6 +169,17 @@ async def run() -> None:
             await asyncio.sleep(5)
 
 
+def get_zigbee_bulbs() -> list[Device]:
+    with Session(engine) as session:
+        return list(session.exec(
+            select(Device).where(
+                Device.integration == Integration.zigbee2mqtt,
+                Device.type == DeviceType.bulb,
+                Device.dimmable == True,  # noqa: E712 — SQLModel comparison, not a Python bool check
+            )
+        ).all())
+
+
 async def publish(topic: str, payload: dict) -> None:
     try:
         async with aiomqtt.Client(HOST, PORT) as client:
