@@ -94,6 +94,22 @@ class TestApplyState:
         d = _refresh(session, z2m_device)
         assert d.brightness == 50
 
+    def test_energy_today_and_month(self, engine, session, z2m_device):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_socket", {"power": 7.5, "energy_today": 0.4234, "energy_month": 12.789})
+        d = _refresh(session, z2m_device)
+        assert d.energy_today == 0.423
+        assert d.energy_month == 12.789
+
+    def test_energy_today_and_month_logged_to_power_sample(self, engine, session, z2m_device):
+        from app.devices.models import PowerSample
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_socket", {"power": 7.5, "energy_today": 0.42, "energy_month": 12.7})
+        samples = session.exec(select(PowerSample).where(PowerSample.device_id == z2m_device.id)).all()
+        assert len(samples) == 1
+        assert samples[0].energy_today == 0.42
+        assert samples[0].energy_month == 12.7
+
     def test_marks_offline(self, engine, session, z2m_device):
         with patch("app.devices.mqtt.engine", engine):
             _apply_state("test_socket", {}, online=False)

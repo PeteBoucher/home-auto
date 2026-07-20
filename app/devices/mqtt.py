@@ -58,6 +58,10 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.voltage = round(float(payload["voltage"]), 1)
         if "energy" in payload:
             device.energy = round(float(payload["energy"]), 3)
+        if "energy_today" in payload:
+            device.energy_today = round(float(payload["energy_today"]), 3)
+        if "energy_month" in payload:
+            device.energy_month = round(float(payload["energy_month"]), 3)
         if "temperature" in payload:
             device.sensor_temperature = round(float(payload["temperature"]), 1)
         if "humidity" in payload:
@@ -65,12 +69,14 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
         if "battery" in payload:
             device.battery = int(payload["battery"])
         session.add(device)
-        if any(k in payload for k in ("power", "voltage", "current")):
+        if any(k in payload for k in ("power", "voltage", "current", "energy_today", "energy_month")):
             session.add(PowerSample(
                 device_id=device.id,
                 voltage=device.voltage,
                 power=device.power,
                 current=device.current,
+                energy_today=device.energy_today,
+                energy_month=device.energy_month,
             ))
         if any(k in payload for k in ("temperature", "humidity")):
             session.add(ClimateSample(

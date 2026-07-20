@@ -27,9 +27,19 @@
     <canvas id="power-chart"></canvas>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm p-5">
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
     <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Current (A)</p>
     <canvas id="current-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy today (kWh)</p>
+    <canvas id="energy-today-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy this month (kWh)</p>
+    <canvas id="energy-month-chart"></canvas>
   </div>
 </div>
 
@@ -51,6 +61,14 @@
     {
       id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'mA', scale: 1000,
       yAxis: { beginAtZero: true, ticks: { precision: 0 } },
+    },
+    {
+      id: 'energy-today-chart', key: 'energy_today', label: 'Energy today', color: '#8B5CF6', unit: 'kWh',
+      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
+    },
+    {
+      id: 'energy-month-chart', key: 'energy_month', label: 'Energy this month', color: '#EC4899', unit: 'kWh',
+      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
     },
   ];
 

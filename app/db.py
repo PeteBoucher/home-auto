@@ -26,6 +26,10 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN humidity REAL",
             "ALTER TABLE device ADD COLUMN battery INTEGER",
             "ALTER TABLE device ADD COLUMN room TEXT",
+            "ALTER TABLE device ADD COLUMN energy_today REAL",
+            "ALTER TABLE device ADD COLUMN energy_month REAL",
+            "ALTER TABLE powersample ADD COLUMN energy_today REAL",
+            "ALTER TABLE powersample ADD COLUMN energy_month REAL",
         ]:
             try:
                 conn.execute(text(stmt))

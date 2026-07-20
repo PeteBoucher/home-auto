@@ -54,6 +54,8 @@ class Device(SQLModel, table=True):
     current: Optional[float] = None     # plugs with monitoring: amps
     voltage: Optional[float] = None     # plugs with monitoring: volts
     energy: Optional[float] = None      # plugs with monitoring: kWh cumulative
+    energy_today: Optional[float] = None  # plugs with monitoring: kWh since midnight
+    energy_month: Optional[float] = None  # plugs with monitoring: kWh since 1st of month
     sensor_temperature: Optional[float] = None  # sensors: ambient °C
     humidity: Optional[float] = None            # sensors: relative humidity %
     battery: Optional[int] = None               # battery-powered devices: %
@@ -102,6 +104,8 @@ class PowerSample(SQLModel, table=True):
     voltage: Optional[float] = None
     power: Optional[float] = None
     current: Optional[float] = None
+    energy_today: Optional[float] = None
+    energy_month: Optional[float] = None
 
 
 class ClimateSample(SQLModel, table=True):

@@ -457,6 +457,8 @@ async def power_chart_data(device_id: int, session: SessionDep, hours: int = Que
         "voltage": [s.voltage for s in samples],
         "power": [s.power for s in samples],
         "current": [s.current for s in samples],
+        "energy_today": [s.energy_today for s in samples],
+        "energy_month": [s.energy_month for s in samples],
     }
 
 

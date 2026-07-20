@@ -256,6 +256,36 @@ class TestClimateChart:
         assert data["humidity"][0] == 55.2
 
 
+class TestPowerChart:
+    def test_chart_page(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart")
+        assert resp.status_code == 200
+        assert "Power History" in resp.text
+
+    def test_data_empty(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/data")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["timestamps"] == []
+        assert data["energy_today"] == []
+        assert data["energy_month"] == []
+
+    def test_data_returns_samples(self, client, z2m_plug, session):
+        from datetime import datetime
+        from app.devices.models import PowerSample
+        session.add(PowerSample(
+            device_id=z2m_plug.id, voltage=230.1, power=7.5, current=0.03,
+            energy_today=0.42, energy_month=12.7,
+            timestamp=datetime.utcnow(),
+        ))
+        session.commit()
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/data")
+        data = resp.json()
+        assert len(data["timestamps"]) == 1
+        assert data["energy_today"][0] == 0.42
+        assert data["energy_month"][0] == 12.7
+
+
 class TestRename:
     def test_sets_name_and_room(self, client, tuya_bulb, session):
         resp = client.post(f"/devices/{tuya_bulb.id}/rename", data={"name": "Bedside Lamp", "room": "Bedroom"})

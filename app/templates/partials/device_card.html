@@ -254,6 +254,18 @@
       <p class="text-xs text-gray-400">Energy</p>
     </div>
   </div>
+  {% if device.energy_today is not none or device.energy_month is not none %}
+  <div class="grid grid-cols-2 gap-2 text-center">
+    <div>
+      <p class="text-sm font-semibold text-gray-800">{{ device.energy_today if device.energy_today is not none else "—" }}kWh</p>
+      <p class="text-xs text-gray-400">Today</p>
+    </div>
+    <div>
+      <p class="text-sm font-semibold text-gray-800">{{ device.energy_month if device.energy_month is not none else "—" }}kWh</p>
+      <p class="text-xs text-gray-400">This month</p>
+    </div>
+  </div>
+  {% endif %}
   <div class="text-right -mt-1">
     <a href="/devices/{{ device.id }}/power-chart"
        class="text-xs text-blue-400 hover:text-blue-600 transition-colors">
