@@ -1,7 +1,7 @@
 {% set _icons  = {"plug": "bi-plug-fill",      "bulb": "bi-lightbulb-fill", "ac": "bi-snow"} %}
 {% set _colors = {"plug": "bg-orange-100 text-orange-500", "bulb": "bg-yellow-100 text-yellow-500", "ac": "bg-sky-100 text-sky-500"} %}
 {% set _labels = {"plug": "Socket", "bulb": "Bulb", "ac": "Air conditioner"} %}
-<div id="device-{{ device.id }}-name" class="flex items-center gap-2 min-w-0">
+<div id="device-{{ device.id }}-name" hx-preserve="true" class="flex items-center gap-2 min-w-0">
   <div class="min-w-0">
     <h2 class="font-semibold text-gray-800 truncate">{{ device.name }}</h2>
     {% if device.room %}

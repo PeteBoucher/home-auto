@@ -1,4 +1,4 @@
-<div id="device-{{ device.id }}-name">
+<div id="device-{{ device.id }}-name" hx-preserve="true">
   <form
     hx-post="/devices/{{ device.id }}/rename"
     hx-target="#device-{{ device.id }}-name"

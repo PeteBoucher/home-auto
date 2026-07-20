@@ -292,6 +292,17 @@ class TestRename:
         resp = client.post("/devices/9999/rename", data={"name": "X"})
         assert resp.status_code == 404
 
+    def test_name_display_is_preserved_across_grid_refresh(self, client, tuya_bulb):
+        # The dashboard's 30s poll re-renders the whole grid via outerHTML swap;
+        # hx-preserve keeps an in-progress edit (open rename form) from being
+        # clobbered by that background refresh.
+        resp = client.get(f"/devices/{tuya_bulb.id}/name")
+        assert 'hx-preserve="true"' in resp.text
+
+    def test_rename_form_is_preserved_across_grid_refresh(self, client, tuya_bulb):
+        resp = client.get(f"/devices/{tuya_bulb.id}/rename-form")
+        assert 'hx-preserve="true"' in resp.text
+
 
 class TestDeviceManagement:
     def test_delete_device(self, client, tuya_bulb, session):
