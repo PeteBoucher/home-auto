@@ -2,7 +2,9 @@
 <div id="device-{{ device.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4">
 
   <div class="flex items-center justify-between gap-4">
-    {% include "partials/device_name.html" %}
+    <div id="device-{{ device.id }}-name-preserve" hx-preserve="true">
+      {% include "partials/device_name.html" %}
+    </div>
     <span class="flex items-center gap-1.5 text-xs flex-shrink-0 {% if device.online %}text-green-600{% else %}text-gray-400{% endif %}">
       <span class="w-2 h-2 rounded-full {% if device.online %}bg-green-500{% else %}bg-gray-300{% endif %}"></span>
       {{ "Online" if device.online else "Offline" }}

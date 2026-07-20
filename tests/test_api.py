@@ -292,16 +292,25 @@ class TestRename:
         resp = client.post("/devices/9999/rename", data={"name": "X"})
         assert resp.status_code == 404
 
-    def test_name_display_is_preserved_across_grid_refresh(self, client, tuya_bulb):
-        # The dashboard's 30s poll re-renders the whole grid via outerHTML swap;
-        # hx-preserve keeps an in-progress edit (open rename form) from being
-        # clobbered by that background refresh.
-        resp = client.get(f"/devices/{tuya_bulb.id}/name")
-        assert 'hx-preserve="true"' in resp.text
+    def test_grid_wraps_name_area_in_preserve_boundary(self, client, tuya_bulb):
+        # The dashboard's 30s poll re-renders the whole grid via an innerHTML
+        # swap on an ancestor; wrapping just the name/room area at the card
+        # level lets hx-preserve keep an in-progress edit (open rename form)
+        # intact across that background refresh.
+        resp = client.get("/devices/grid")
+        assert f'id="device-{tuya_bulb.id}-name-preserve" hx-preserve="true"' in resp.text
 
-    def test_rename_form_is_preserved_across_grid_refresh(self, client, tuya_bulb):
+    def test_name_fragment_itself_is_not_marked_preserve(self, client, tuya_bulb):
+        # Regression guard: hx-preserve on the element that the edit/save/cancel
+        # buttons themselves outerHTML-swap breaks htmx's swap entirely (the
+        # element vanishes instead of being replaced) — it must only be on the
+        # stable wrapper one level up, never on this fragment's own root.
+        resp = client.get(f"/devices/{tuya_bulb.id}/name")
+        assert "hx-preserve" not in resp.text
+
+    def test_rename_form_fragment_itself_is_not_marked_preserve(self, client, tuya_bulb):
         resp = client.get(f"/devices/{tuya_bulb.id}/rename-form")
-        assert 'hx-preserve="true"' in resp.text
+        assert "hx-preserve" not in resp.text
 
 
 class TestDeviceManagement:
