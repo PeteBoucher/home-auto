@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel, Relationship
 
 
@@ -114,3 +115,21 @@ class ClimateSample(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     temperature: Optional[float] = None
     humidity: Optional[float] = None
+
+
+class EnergyDailySummary(SQLModel, table=True):
+    """One row per device per calendar day, kept indefinitely (unlike PowerSample,
+    which is pruned after 7 days) so daily/monthly energy charts have history to show.
+
+    Each field holds the last value seen that day for its counter — since
+    energy_today/energy_month are monotonically increasing within their period,
+    the last value recorded on a given date is that period's running total as of
+    end of day, which is exactly what a daily bar or a calendar-month rollup needs.
+    """
+    __table_args__ = (UniqueConstraint("device_id", "date", name="uq_energy_daily_device_date"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    date: str  # "YYYY-MM-DD", local calendar date
+    energy_today: Optional[float] = None
+    energy_month: Optional[float] = None

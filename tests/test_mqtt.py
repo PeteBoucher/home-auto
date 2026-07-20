@@ -110,6 +110,34 @@ class TestApplyState:
         assert samples[0].energy_today == 0.42
         assert samples[0].energy_month == 12.7
 
+    def test_energy_today_upserts_daily_summary(self, engine, session, z2m_device):
+        from datetime import date
+        from app.devices.models import EnergyDailySummary
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_socket", {"power": 7.5, "energy_today": 0.42, "energy_month": 12.7})
+        rows = session.exec(select(EnergyDailySummary).where(EnergyDailySummary.device_id == z2m_device.id)).all()
+        assert len(rows) == 1
+        assert rows[0].date == date.today().isoformat()
+        assert rows[0].energy_today == 0.42
+        assert rows[0].energy_month == 12.7
+
+    def test_energy_today_summary_updates_same_day_row(self, engine, session, z2m_device):
+        from app.devices.models import EnergyDailySummary
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_socket", {"energy_today": 0.42, "energy_month": 12.7})
+            _apply_state("test_socket", {"energy_today": 0.55, "energy_month": 12.8})
+        rows = session.exec(select(EnergyDailySummary).where(EnergyDailySummary.device_id == z2m_device.id)).all()
+        assert len(rows) == 1
+        assert rows[0].energy_today == 0.55
+        assert rows[0].energy_month == 12.8
+
+    def test_energy_summary_not_touched_without_energy_fields(self, engine, session, z2m_device):
+        from app.devices.models import EnergyDailySummary
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_socket", {"power": 7.5})
+        rows = session.exec(select(EnergyDailySummary).where(EnergyDailySummary.device_id == z2m_device.id)).all()
+        assert rows == []
+
     def test_marks_offline(self, engine, session, z2m_device):
         with patch("app.devices.mqtt.engine", engine):
             _apply_state("test_socket", {}, online=False)

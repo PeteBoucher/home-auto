@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.db import SessionDep
-from app.devices.models import ClimateSample, Device, DeviceType, Integration, PowerSample, Schedule
+from app.devices.models import ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -459,6 +459,40 @@ async def power_chart_data(device_id: int, session: SessionDep, hours: int = Que
         "current": [s.current for s in samples],
         "energy_today": [s.energy_today for s in samples],
         "energy_month": [s.energy_month for s in samples],
+    }
+
+
+@router.get("/{device_id}/power-chart/energy-daily")
+async def energy_daily_data(device_id: int, session: SessionDep, days: int = Query(default=30, ge=1, le=365)):
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    rows = session.exec(
+        select(EnergyDailySummary)
+        .where(EnergyDailySummary.device_id == device_id, EnergyDailySummary.date >= cutoff)
+        .order_by(EnergyDailySummary.date)
+    ).all()
+    return {
+        "dates": [r.date for r in rows],
+        "energy_today": [r.energy_today for r in rows],
+    }
+
+
+@router.get("/{device_id}/power-chart/energy-monthly")
+async def energy_monthly_data(device_id: int, session: SessionDep, months: int = Query(default=12, ge=1, le=60)):
+    rows = session.exec(
+        select(EnergyDailySummary)
+        .where(EnergyDailySummary.device_id == device_id)
+        .order_by(EnergyDailySummary.date)
+    ).all()
+    by_month: dict[str, float] = {}
+    for r in rows:
+        if r.energy_month is None:
+            continue
+        month = r.date[:7]  # "YYYY-MM"
+        by_month[month] = max(by_month.get(month, 0.0), r.energy_month)
+    selected = sorted(by_month)[-months:]
+    return {
+        "months": selected,
+        "energy_month": [by_month[m] for m in selected],
     }
 
 

@@ -1,13 +1,14 @@
 import asyncio
 import json
 import logging
+from datetime import date
 from pathlib import Path
 
 import aiomqtt
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import ClimateSample, Device, DeviceType, Integration, PowerSample
+from app.devices.models import ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample
 from app.devices.zigbee_color import hs_to_rgb_hex, mireds_to_pct
 
 log = logging.getLogger(__name__)
@@ -17,6 +18,23 @@ PORT = 1883
 PREFIX = "zigbee2mqtt"
 
 Z2M_STATE_FILE = Path("/opt/zigbee2mqtt/data/state.json")
+
+
+def _upsert_energy_summary(session: Session, device_id: int, energy_today: float | None, energy_month: float | None) -> None:
+    today = date.today().isoformat()
+    row = session.exec(
+        select(EnergyDailySummary).where(
+            EnergyDailySummary.device_id == device_id,
+            EnergyDailySummary.date == today,
+        )
+    ).first()
+    if row is None:
+        row = EnergyDailySummary(device_id=device_id, date=today)
+    if energy_today is not None:
+        row.energy_today = energy_today
+    if energy_month is not None:
+        row.energy_month = energy_month
+    session.add(row)
 
 
 def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tuple[int, dict] | None:
@@ -62,6 +80,8 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.energy_today = round(float(payload["energy_today"]), 3)
         if "energy_month" in payload:
             device.energy_month = round(float(payload["energy_month"]), 3)
+        if "energy_today" in payload or "energy_month" in payload:
+            _upsert_energy_summary(session, device.id, device.energy_today, device.energy_month)
         if "temperature" in payload:
             device.sensor_temperature = round(float(payload["temperature"]), 1)
         if "humidity" in payload:

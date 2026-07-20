@@ -62,14 +62,6 @@
       id: 'current-chart', key: 'current', label: 'Current', color: '#10B981', unit: 'mA', scale: 1000,
       yAxis: { beginAtZero: true, ticks: { precision: 0 } },
     },
-    {
-      id: 'energy-today-chart', key: 'energy_today', label: 'Energy today', color: '#8B5CF6', unit: 'kWh',
-      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
-    },
-    {
-      id: 'energy-month-chart', key: 'energy_month', label: 'Energy this month', color: '#EC4899', unit: 'kWh',
-      yAxis: { beginAtZero: true, ticks: { precision: 2 } },
-    },
   ];
 
   function makeChart(canvasId, label, color, unit, yAxis, points) {
@@ -135,6 +127,52 @@
     });
   }
 
+  function makeBarChart(canvasId, label, color, unit, labels, values) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label,
+          data: values,
+          backgroundColor: color,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#9CA3AF', font: { size: 11 } } },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: unit, color: '#9CA3AF', font: { size: 11 } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 }, precision: 2 },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadEnergyDaily() {
+    const resp = await fetch('/devices/{{ device.id }}/power-chart/energy-daily?days=30');
+    const data = await resp.json();
+    const labels = data.dates.map(d => d.slice(5)); // "MM-DD"
+    if (charts['energy-today-chart']) charts['energy-today-chart'].destroy();
+    charts['energy-today-chart'] = makeBarChart('energy-today-chart', 'Energy today', '#8B5CF6', 'kWh', labels, data.energy_today);
+  }
+
+  async function loadEnergyMonthly() {
+    const resp = await fetch('/devices/{{ device.id }}/power-chart/energy-monthly?months=12');
+    const data = await resp.json();
+    if (charts['energy-month-chart']) charts['energy-month-chart'].destroy();
+    charts['energy-month-chart'] = makeBarChart('energy-month-chart', 'Energy this month', '#EC4899', 'kWh', data.months, data.energy_month);
+  }
+
   loadChart(6);
+  loadEnergyDaily();
+  loadEnergyMonthly();
 </script>
 {% endblock %}

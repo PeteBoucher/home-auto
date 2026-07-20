@@ -285,6 +285,37 @@ class TestPowerChart:
         assert data["energy_today"][0] == 0.42
         assert data["energy_month"][0] == 12.7
 
+    def test_energy_daily_empty(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/energy-daily")
+        assert resp.status_code == 200
+        assert resp.json() == {"dates": [], "energy_today": []}
+
+    def test_energy_daily_returns_rows_within_window(self, client, z2m_plug, session):
+        from app.devices.models import EnergyDailySummary
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-06-01", energy_today=0.9, energy_month=20.0))
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-07-19", energy_today=0.42, energy_month=12.7))
+        session.commit()
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/energy-daily?days=30")
+        data = resp.json()
+        assert data["dates"] == ["2026-07-19"]
+        assert data["energy_today"] == [0.42]
+
+    def test_energy_monthly_empty(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/energy-monthly")
+        assert resp.status_code == 200
+        assert resp.json() == {"months": [], "energy_month": []}
+
+    def test_energy_monthly_takes_max_per_month(self, client, z2m_plug, session):
+        from app.devices.models import EnergyDailySummary
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-06-15", energy_today=0.3, energy_month=8.0))
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-06-30", energy_today=0.5, energy_month=15.4))
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-07-05", energy_today=0.4, energy_month=2.1))
+        session.commit()
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart/energy-monthly")
+        data = resp.json()
+        assert data["months"] == ["2026-06", "2026-07"]
+        assert data["energy_month"] == [15.4, 2.1]
+
 
 class TestRename:
     def test_sets_name_and_room(self, client, tuya_bulb, session):
