@@ -281,7 +281,10 @@ class TestSunTriggers:
         mock_sun.assert_not_awaited()
         assert scheduler.get_job(f"auto_sun_{auto.id}") is None
 
-    def test_removes_job_when_time_already_passed_today(self, engine, session, bulb):
+    def test_reschedules_for_tomorrow_when_time_already_passed_today(self, engine, session, bulb):
+        # refresh_sun_jobs runs once/day at whatever time the service last
+        # restarted, not a fixed pre-dawn time — so "today's" event having
+        # already passed is the normal case, not a reason to drop the job.
         from app.services.scheduler import scheduler
         auto = self._make_auto(session, bulb)
         past_sunset = datetime.now() - timedelta(minutes=5)
@@ -292,7 +295,9 @@ class TestSunTriggers:
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
         ):
             asyncio.run(auto_engine.refresh_sun_jobs())
-        assert scheduler.get_job(f"auto_sun_{auto.id}") is None
+        job = scheduler.get_job(f"auto_sun_{auto.id}")
+        assert job is not None
+        assert job.trigger.run_date.replace(tzinfo=None) == past_sunset + timedelta(days=1)
 
     def test_remove_automation_clears_sun_job(self, engine, session, bulb):
         from app.services.scheduler import scheduler

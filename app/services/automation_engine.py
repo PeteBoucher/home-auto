@@ -189,6 +189,13 @@ async def refresh_sun_jobs() -> None:
         if auto.enabled and sunrise and sunset:
             base = sunrise if auto.trigger_sun_event == "sunrise" else sunset
             target = base + timedelta(minutes=auto.trigger_sun_offset or 0)
+            if target <= now:
+                # Today's event has already passed — this job runs once a day at
+                # whatever time the service last started, not at a fixed pre-dawn
+                # time, so "today's" sunrise/sunset is routinely already behind us.
+                # Roll forward a day rather than dropping the job; the ~1-2 min/day
+                # drift is corrected on the next daily refresh anyway.
+                target += timedelta(days=1)
         if target and target > now:
             scheduler.add_job(
                 _fire_by_id, "date", run_date=target,
