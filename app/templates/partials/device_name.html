@@ -4,6 +4,9 @@
 <div id="device-{{ device.id }}-name" class="flex items-center gap-2 min-w-0">
   <div class="min-w-0">
     <h2 class="font-semibold text-gray-800 truncate">{{ device.name }}</h2>
+    {% if device.room %}
+    <p class="text-xs text-gray-400 truncate">{{ device.room }}</p>
+    {% endif %}
     <span
       class="inline-flex items-center justify-center mt-1 w-6 h-6 rounded-full {{ _colors[device.type.value] }}"
       title="{{ _labels[device.type.value] }}"

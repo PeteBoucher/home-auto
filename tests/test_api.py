@@ -256,6 +256,43 @@ class TestClimateChart:
         assert data["humidity"][0] == 55.2
 
 
+class TestRename:
+    def test_sets_name_and_room(self, client, tuya_bulb, session):
+        resp = client.post(f"/devices/{tuya_bulb.id}/rename", data={"name": "Bedside Lamp", "room": "Bedroom"})
+        assert resp.status_code == 200
+        session.refresh(tuya_bulb)
+        assert tuya_bulb.name == "Bedside Lamp"
+        assert tuya_bulb.room == "Bedroom"
+        assert "Bedroom" in resp.text
+
+    def test_room_is_optional(self, client, tuya_bulb, session):
+        resp = client.post(f"/devices/{tuya_bulb.id}/rename", data={"name": "Bedside Lamp"})
+        assert resp.status_code == 200
+        session.refresh(tuya_bulb)
+        assert tuya_bulb.room is None
+
+    def test_blank_room_clears_existing_value(self, client, tuya_bulb, session):
+        tuya_bulb.room = "Bedroom"
+        session.add(tuya_bulb)
+        session.commit()
+        resp = client.post(f"/devices/{tuya_bulb.id}/rename", data={"name": "Bedside Lamp", "room": "  "})
+        assert resp.status_code == 200
+        session.refresh(tuya_bulb)
+        assert tuya_bulb.room is None
+
+    def test_blank_name_is_a_noop(self, client, tuya_bulb, session):
+        original_name = tuya_bulb.name
+        resp = client.post(f"/devices/{tuya_bulb.id}/rename", data={"name": "  ", "room": "Bedroom"})
+        assert resp.status_code == 200
+        session.refresh(tuya_bulb)
+        assert tuya_bulb.name == original_name
+        assert tuya_bulb.room is None
+
+    def test_unknown_device_returns_404(self, client):
+        resp = client.post("/devices/9999/rename", data={"name": "X"})
+        assert resp.status_code == 404
+
+
 class TestDeviceManagement:
     def test_delete_device(self, client, tuya_bulb, session):
         resp = client.post(f"/devices/{tuya_bulb.id}/delete")

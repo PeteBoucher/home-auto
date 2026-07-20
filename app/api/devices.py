@@ -239,6 +239,7 @@ async def rename_device(device_id: int, request: Request, session: SessionDep):
     name = str(form.get("name", "")).strip()
     if name:
         device.name = name
+        device.room = str(form.get("room", "")).strip() or None
         session.add(device)
         session.commit()
         session.refresh(device)

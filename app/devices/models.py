@@ -29,6 +29,7 @@ class Integration(str, Enum):
 class Device(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
+    room: Optional[str] = None            # free-text install location, e.g. "Lounge"
     device_id: str = Field(unique=True)  # Z2M: friendly_name; Tuya: device ID
     local_key: str = Field(default="")
     ip_address: str = Field(default="")
