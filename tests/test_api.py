@@ -39,8 +39,8 @@ class TestDashboard:
 class TestTuyaCommands:
     def test_toggle_on(self, client, tuya_bulb):
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_ON)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_ON)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"state": "true"})
         assert resp.status_code == 200
@@ -48,8 +48,8 @@ class TestTuyaCommands:
 
     def test_toggle_off(self, client, tuya_bulb):
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_OFF)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_OFF)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"state": "false"})
         assert resp.status_code == 200
@@ -58,8 +58,8 @@ class TestTuyaCommands:
     def test_brightness(self, client, tuya_bulb):
         state = {**_TUYA_STATE_ON, "brightness": 30}
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=state)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=state)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"brightness": "30"})
         assert resp.status_code == 200
@@ -69,8 +69,8 @@ class TestTuyaCommands:
     def test_color_temp(self, client, tuya_bulb):
         state = {**_TUYA_STATE_ON, "color_temp": 25}
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=state)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=state)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"color_temp": "25"})
         assert resp.status_code == 200
@@ -79,8 +79,8 @@ class TestTuyaCommands:
     def test_switch_to_colour_mode(self, client, tuya_bulb):
         state = {**_TUYA_STATE_ON, "color_mode": "colour", "color_rgb": "#ff0000"}
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=state)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=state)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"color_mode": "colour"})
         assert resp.status_code == 200
@@ -92,8 +92,8 @@ class TestTuyaCommands:
     def test_colour_picker(self, client, tuya_bulb):
         state = {**_TUYA_STATE_ON, "color_mode": "colour", "color_rgb": "#ff0000"}
         with (
-            patch("app.api.devices.tuya_client.send_command", new=AsyncMock()),
-            patch("app.api.devices.tuya_client.get_state", new=AsyncMock(return_value=state)),
+            patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()),
+            patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=state)),
         ):
             resp = client.post(f"/devices/{tuya_bulb.id}/command", data={"color_rgb": "#ff0000"})
         assert resp.status_code == 200
@@ -383,3 +383,84 @@ class TestDeviceManagement:
     def test_delete_unknown_device(self, client):
         resp = client.post("/devices/9999/delete")
         assert resp.status_code == 404
+
+
+class TestGroups:
+    def test_groups_page_empty(self, client):
+        resp = client.get("/groups")
+        assert resp.status_code == 200
+        assert "No groups yet" in resp.text
+
+    def test_create_group(self, client, z2m_bulb, tuya_bulb, session):
+        from app.devices.models import DeviceGroup
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            resp = client.post(
+                "/groups",
+                data={"name": "Lounge & Dining", "device_ids": [str(z2m_bulb.id), str(tuya_bulb.id)]},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 303
+        group = session.exec(select(DeviceGroup)).first()
+        assert group.name == "Lounge & Dining"
+        session.refresh(z2m_bulb)
+        session.refresh(tuya_bulb)
+        assert z2m_bulb.group_id == group.id
+        assert tuya_bulb.group_id == group.id
+
+    def test_groups_page_lists_members(self, client, z2m_bulb, tuya_bulb):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post("/groups", data={"name": "Lounge & Dining", "device_ids": [str(z2m_bulb.id), str(tuya_bulb.id)]})
+        resp = client.get("/groups")
+        assert "Lounge &amp; Dining" in resp.text  # Jinja2 HTML-escapes "&"
+        assert z2m_bulb.name in resp.text
+        assert tuya_bulb.name in resp.text
+
+    def test_group_command_toggles_on(self, client, z2m_bulb, session):
+        from app.devices.models import DeviceGroup
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post("/groups", data={"name": "Lights", "device_ids": [str(z2m_bulb.id)]})
+        group = session.exec(select(DeviceGroup)).first()
+        with patch("app.services.groups.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/groups/{group.id}/command", data={"state": "true"})
+        assert resp.status_code == 200
+        assert "On" in resp.text
+        mock_pub.assert_awaited_once()
+
+    def test_delete_group_removes_it(self, client, z2m_bulb, session):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post("/groups", data={"name": "Lights", "device_ids": [str(z2m_bulb.id)]})
+        from app.devices.models import DeviceGroup
+        group = session.exec(select(DeviceGroup)).first()
+        with patch("app.services.groups.mqtt_client.remove_zigbee_group", new=AsyncMock()):
+            resp = client.post(f"/groups/{group.id}/delete")
+        assert resp.status_code == 200
+        assert resp.text == ""
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.group_id is None
+
+    def test_delete_unknown_group_404(self, client):
+        resp = client.post("/groups/9999/delete")
+        assert resp.status_code == 404
+
+    def test_update_members(self, client, z2m_bulb, z2m_plug, session):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post("/groups", data={"name": "Lights", "device_ids": [str(z2m_bulb.id)]})
+        from app.devices.models import DeviceGroup
+        group = session.exec(select(DeviceGroup)).first()
+        with patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.remove_group_member", new=AsyncMock()):
+            resp = client.post(
+                f"/groups/{group.id}/members",
+                data={"device_ids": [str(z2m_plug.id)]},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 303
+        session.refresh(z2m_bulb)
+        session.refresh(z2m_plug)
+        assert z2m_bulb.group_id is None
+        assert z2m_plug.group_id == group.id

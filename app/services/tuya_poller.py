@@ -7,6 +7,7 @@ from app.db import engine
 from app.devices.models import Device, Integration
 from app.devices import tuya as tuya_client
 from app.services.automation_engine import check_state_triggers
+from app.services.groups import propagate_member_change
 
 log = logging.getLogger(__name__)
 
@@ -47,5 +48,9 @@ async def poll_tuya_devices() -> None:
 
     await asyncio.gather(
         *[check_state_triggers(d.id, s) for d, s in zip(devices, states) if isinstance(s, dict)],
+        return_exceptions=True,
+    )
+    await asyncio.gather(
+        *[propagate_member_change(d.id) for d, s in zip(devices, states) if isinstance(s, dict)],
         return_exceptions=True,
     )

@@ -30,6 +30,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN energy_month REAL",
             "ALTER TABLE powersample ADD COLUMN energy_today REAL",
             "ALTER TABLE powersample ADD COLUMN energy_month REAL",
+            "ALTER TABLE device ADD COLUMN group_id INTEGER REFERENCES devicegroup(id)",
         ]:
             try:
                 conn.execute(text(stmt))

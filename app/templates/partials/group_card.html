@@ -1,0 +1,121 @@
+{% set next_state = "false" if group.state else "true" %}
+<div id="group-{{ group.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4 border border-blue-100">
+
+  <div class="flex items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h2 class="font-semibold text-gray-800 truncate">{{ group.name }}</h2>
+      <p class="text-xs text-gray-400">
+        <i class="bi bi-diagram-3"></i> Group
+        {% if group.zigbee_group_name %}· Zigbee-backed{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <button
+    hx-post="/groups/{{ group.id }}/command"
+    hx-vals='{"state": "{{ next_state }}"}'
+    hx-target="#group-{{ group.id }}"
+    hx-swap="outerHTML"
+    class="w-full py-2.5 px-4 rounded-lg font-medium text-sm transition-colors
+      {% if group.state %}bg-green-500 hover:bg-green-600 text-white
+      {% else %}bg-gray-200 hover:bg-gray-300 text-gray-600{% endif %}"
+  >
+    {{ "On" if group.state else "Off" }}
+  </button>
+
+  {% if group.state and group.dimmable %}
+
+  {% set is_colour = group.color_mode == "colour" %}
+
+  <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+    <button
+      hx-post="/groups/{{ group.id }}/command"
+      hx-vals='{"color_mode": "white"}'
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 py-1 rounded-md text-xs font-medium transition-colors
+        {% if not is_colour %}bg-white shadow text-gray-700{% else %}text-gray-400 hover:text-gray-600{% endif %}"
+    >White</button>
+    <button
+      hx-post="/groups/{{ group.id }}/command"
+      hx-vals='{"color_mode": "colour"}'
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 py-1 rounded-md text-xs font-medium transition-colors
+        {% if is_colour %}bg-white shadow text-gray-700{% else %}text-gray-400 hover:text-gray-600{% endif %}"
+    >Colour</button>
+  </div>
+
+  {% if not is_colour %}
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400 w-6">Low</span>
+    <input
+      type="range"
+      name="brightness"
+      min="10" max="100"
+      value="{{ group.brightness or 50 }}"
+      hx-post="/groups/{{ group.id }}/command"
+      hx-trigger="change"
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 accent-yellow-400 cursor-pointer"
+    >
+    <span class="text-xs text-gray-400 w-8 text-right">High</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400 w-6">☀️</span>
+    <input
+      type="range"
+      name="color_temp"
+      min="0" max="100"
+      value="{{ group.color_temp if group.color_temp is not none else 50 }}"
+      hx-post="/groups/{{ group.id }}/command"
+      hx-trigger="change"
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      style="background: linear-gradient(to right, #ffb347, #cce0ff)"
+      class="flex-1 cursor-pointer"
+    >
+    <span class="text-xs text-gray-400 w-8 text-right">❄️</span>
+  </div>
+  {% else %}
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-gray-400">Colour</span>
+    <input
+      type="color"
+      name="color_rgb"
+      value="{{ group.color_rgb or '#ffffff' }}"
+      hx-post="/groups/{{ group.id }}/command"
+      hx-trigger="change"
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      class="flex-1 h-9 rounded-lg cursor-pointer border border-gray-200"
+    >
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+  <div class="border-t border-gray-100 pt-3">
+    <p class="text-xs text-gray-400 mb-1.5">Members</p>
+    <div class="flex flex-wrap gap-1.5">
+      {% for m in members %}
+      <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-md">{{ m.name }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between -mt-1">
+    <span></span>
+    <button
+      hx-post="/groups/{{ group.id }}/delete"
+      hx-target="#group-{{ group.id }}"
+      hx-swap="outerHTML"
+      hx-confirm="Delete group {{ group.name }}? Members will stop syncing but keep working individually."
+      class="text-xs text-gray-300 hover:text-red-400 transition-colors"
+    >
+      Delete group
+    </button>
+  </div>
+
+</div>

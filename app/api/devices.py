@@ -8,12 +8,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 
 from app.db import SessionDep
-from app.devices.models import ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule
-from app.devices import tuya as tuya_client
+from app.devices.models import (
+    ClimateSample, Device, DeviceGroup, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule,
+)
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
 from app.devices import firetv as firetv_client
-from app.devices.zigbee_color import pct_to_mireds, rgb_hex_to_hs_brightness
+from app.services.device_commands import apply_device_command
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
 from app.templating import templates
@@ -58,8 +59,11 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 async def device_grid(request: Request, session: SessionDep):
     devices = list(session.exec(select(Device)).all())
     schedules = {s.device_id: s for s in session.exec(select(Schedule)).all()}
+    groups = list(session.exec(select(DeviceGroup)).all())
+    members_by_group = {g.id: [d for d in devices if d.group_id == g.id] for g in groups}
     return templates.TemplateResponse(
-        request, "partials/device_grid.html", {"devices": devices, "schedules": schedules}
+        request, "partials/device_grid.html",
+        {"devices": devices, "schedules": schedules, "groups": groups, "members_by_group": members_by_group}
     )
 
 
@@ -265,18 +269,8 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
     if "color_rgb" in form:
         command["color_rgb"] = str(form["color_rgb"])
 
-    if device.integration == Integration.tuya:
-        await tuya_client.send_command(device, command)
-        state = await tuya_client.get_state(device)
-        device.online = state["online"]
-        device.state = state["state"]
-        device.brightness = state["brightness"]
-        device.color_temp = state.get("color_temp")
-        device.color_mode = state.get("color_mode", "white")
-        device.color_rgb = state.get("color_rgb")
-        session.add(device)
-        session.commit()
-        session.refresh(device)
+    if device.integration in (Integration.tuya, Integration.zigbee2mqtt):
+        await apply_device_command(session, device, command)
 
     elif device.integration == Integration.hon:
         hon_command: dict = {}
@@ -295,38 +289,6 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         device.temperature = state.get("temperature")
         device.ac_mode = state.get("ac_mode")
         device.fan_speed = state.get("fan_speed")
-        session.add(device)
-        session.commit()
-        session.refresh(device)
-
-    elif device.integration == Integration.zigbee2mqtt:
-        payload: dict = {}
-        if "state" in command:
-            payload["state"] = "ON" if command["state"] else "OFF"
-        if "brightness" in command:
-            payload["brightness"] = round(command["brightness"] * 2.54)
-        if "color_temp" in command:
-            payload["color_temp"] = pct_to_mireds(command["color_temp"])
-        if "color_rgb" in command:
-            hue, saturation, brightness = rgb_hex_to_hs_brightness(command["color_rgb"])
-            payload["color"] = {"hue": hue, "saturation": saturation}
-            payload["brightness"] = brightness
-        if payload:
-            await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
-        # Optimistic update — real confirmation arrives via MQTT subscription
-        if "state" in command:
-            device.state = command["state"]
-        if "brightness" in command:
-            device.brightness = command["brightness"]
-        if "color_temp" in command:
-            device.color_temp = command["color_temp"]
-            device.color_mode = "white"
-        if "color_rgb" in command:
-            device.color_rgb = command["color_rgb"]
-            device.color_mode = "colour"
-        if "color_mode" in command and "color_temp" not in command and "color_rgb" not in command:
-            device.color_mode = command["color_mode"]
-        device.online = True
         session.add(device)
         session.commit()
         session.refresh(device)

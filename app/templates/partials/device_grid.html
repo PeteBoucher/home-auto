@@ -1,3 +1,7 @@
+{% for group in groups %}
+  {% set members = members_by_group.get(group.id, []) %}
+  {% include "partials/group_card.html" %}
+{% endfor %}
 {% for device in devices %}
   {% set schedule = schedules.get(device.id) %}
   {% include "partials/device_card.html" %}

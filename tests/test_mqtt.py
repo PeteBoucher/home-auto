@@ -1,11 +1,13 @@
 """Tests for MQTT state application logic."""
-from unittest.mock import patch
+import asyncio
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlmodel import Session, select
 
 from app.devices.models import Device, DeviceType, Integration
-from app.devices.mqtt import _apply_state, get_zigbee_bulbs
+from app.devices import mqtt as mqtt_module
+from app.devices.mqtt import _apply_state, build_set_payload, get_zigbee_bulbs
 
 
 @pytest.fixture(name="z2m_sensor")
@@ -258,3 +260,53 @@ class TestGetZigbeeBulbs:
         with patch("app.devices.mqtt.engine", engine):
             bulbs = get_zigbee_bulbs()
         assert bulbs == []
+
+
+class TestBuildSetPayload:
+    def test_state_on(self):
+        assert build_set_payload({"state": True}) == {"state": "ON"}
+
+    def test_state_off(self):
+        assert build_set_payload({"state": False}) == {"state": "OFF"}
+
+    def test_brightness_scaled_to_254(self):
+        assert build_set_payload({"brightness": 100})["brightness"] == 254
+
+    def test_color_temp_converted_to_mireds(self):
+        assert build_set_payload({"color_temp": 0})["color_temp"] == 556
+
+    def test_color_rgb_converted_to_hue_saturation(self):
+        payload = build_set_payload({"color_rgb": "#ff0000"})
+        assert payload["color"] == {"hue": 0, "saturation": 100}
+        assert payload["brightness"] == 254
+
+    def test_empty_command_yields_empty_payload(self):
+        assert build_set_payload({}) == {}
+
+
+class TestZigbeeGroupManagement:
+    def test_create_zigbee_group(self):
+        with patch("app.devices.mqtt.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(mqtt_module.create_zigbee_group("group_1"))
+        mock_pub.assert_awaited_once_with("zigbee2mqtt/bridge/request/group/add", {"friendly_name": "group_1"})
+
+    def test_remove_zigbee_group(self):
+        with patch("app.devices.mqtt.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(mqtt_module.remove_zigbee_group("group_1"))
+        mock_pub.assert_awaited_once_with("zigbee2mqtt/bridge/request/group/remove", {"id": "group_1"})
+
+    def test_add_group_member(self):
+        with patch("app.devices.mqtt.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(mqtt_module.add_group_member("group_1", "dining_room_uplighter"))
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/bridge/request/group/members/add",
+            {"group": "group_1", "device": "dining_room_uplighter"},
+        )
+
+    def test_remove_group_member(self):
+        with patch("app.devices.mqtt.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(mqtt_module.remove_group_member("group_1", "dining_room_uplighter"))
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/bridge/request/group/members/remove",
+            {"group": "group_1", "device": "dining_room_uplighter"},
+        )

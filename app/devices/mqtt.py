@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app.db import engine
 from app.devices.models import ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample
-from app.devices.zigbee_color import hs_to_rgb_hex, mireds_to_pct
+from app.devices.zigbee_color import hs_to_rgb_hex, mireds_to_pct, pct_to_mireds, rgb_hex_to_hs_brightness
 
 log = logging.getLogger(__name__)
 
@@ -115,8 +115,25 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
         }
 
 
+def build_set_payload(command: dict) -> dict:
+    """Translate the app's device-command format into a Z2M `/set` payload."""
+    payload: dict = {}
+    if "state" in command:
+        payload["state"] = "ON" if command["state"] else "OFF"
+    if "brightness" in command:
+        payload["brightness"] = round(command["brightness"] * 2.54)
+    if "color_temp" in command:
+        payload["color_temp"] = pct_to_mireds(command["color_temp"])
+    if "color_rgb" in command:
+        hue, saturation, brightness = rgb_hex_to_hs_brightness(command["color_rgb"])
+        payload["color"] = {"hue": hue, "saturation": saturation}
+        payload["brightness"] = brightness
+    return payload
+
+
 async def _listen(client: aiomqtt.Client) -> None:
     from app.services.automation_engine import check_state_triggers  # deferred to avoid circular import
+    from app.services.groups import propagate_member_change  # deferred to avoid circular import
     async for message in client.messages:
         topic = str(message.topic)
         try:
@@ -135,6 +152,7 @@ async def _listen(client: aiomqtt.Client) -> None:
             continue
         if result:
             await check_state_triggers(*result)
+            await propagate_member_change(result[0])
 
 
 def _seed_from_z2m_cache() -> None:
@@ -212,6 +230,24 @@ async def publish(topic: str, payload: dict) -> None:
             await client.publish(topic, json.dumps(payload))
     except aiomqtt.MqttError as e:
         log.warning("MQTT publish failed: %s", e)
+
+
+async def create_zigbee_group(friendly_name: str) -> None:
+    await publish(f"{PREFIX}/bridge/request/group/add", {"friendly_name": friendly_name})
+
+
+async def remove_zigbee_group(friendly_name: str) -> None:
+    await publish(f"{PREFIX}/bridge/request/group/remove", {"id": friendly_name})
+
+
+async def add_group_member(group_name: str, device_friendly_name: str) -> None:
+    await publish(f"{PREFIX}/bridge/request/group/members/add", {"group": group_name, "device": device_friendly_name})
+
+
+async def remove_group_member(group_name: str, device_friendly_name: str) -> None:
+    await publish(
+        f"{PREFIX}/bridge/request/group/members/remove", {"group": group_name, "device": device_friendly_name}
+    )
 
 
 async def discover_devices() -> list[dict] | None:

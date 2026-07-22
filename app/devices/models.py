@@ -31,6 +31,7 @@ class Device(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     room: Optional[str] = None            # free-text install location, e.g. "Lounge"
+    group_id: Optional[int] = Field(default=None, foreign_key="devicegroup.id")
     device_id: str = Field(unique=True)  # Z2M: friendly_name; Tuya: device ID
     local_key: str = Field(default="")
     ip_address: str = Field(default="")
@@ -60,6 +61,26 @@ class Device(SQLModel, table=True):
     sensor_temperature: Optional[float] = None  # sensors: ambient °C
     humidity: Optional[float] = None            # sensors: relative humidity %
     battery: Optional[int] = None               # battery-powered devices: %
+
+
+class DeviceGroup(SQLModel, table=True):
+    """A cross-integration group of devices that stay in sync.
+
+    Zigbee members are additionally mirrored into a real Zigbee2MQTT group
+    (`zigbee_group_name`), so a single command to the group fans out as one
+    native Zigbee groupcast rather than one message per Zigbee member.
+    Non-Zigbee members (Tuya, etc.) are always commanded individually — there's
+    no equivalent native grouping for them.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    zigbee_group_name: Optional[str] = None       # Z2M friendly_name for the mirrored Zigbee group
+    state: bool = False
+    brightness: Optional[int] = None
+    color_temp: Optional[int] = None
+    color_mode: str = Field(default="white")
+    color_rgb: Optional[str] = None
+    dimmable: bool = Field(default=True)
 
 
 class Schedule(SQLModel, table=True):
