@@ -33,12 +33,12 @@
   </div>
 
   <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
-    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy today (kWh)</p>
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy by day (kWh)</p>
     <canvas id="energy-today-chart"></canvas>
   </div>
 
   <div class="bg-white rounded-xl shadow-sm p-5">
-    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy this month (kWh)</p>
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Energy by month (kWh)</p>
     <canvas id="energy-month-chart"></canvas>
   </div>
 </div>
@@ -161,14 +161,14 @@
     const data = await resp.json();
     const labels = data.dates.map(d => d.slice(5)); // "MM-DD"
     if (charts['energy-today-chart']) charts['energy-today-chart'].destroy();
-    charts['energy-today-chart'] = makeBarChart('energy-today-chart', 'Energy today', '#8B5CF6', 'kWh', labels, data.energy_today);
+    charts['energy-today-chart'] = makeBarChart('energy-today-chart', 'Energy by day', '#8B5CF6', 'kWh', labels, data.energy_today);
   }
 
   async function loadEnergyMonthly() {
     const resp = await fetch('/devices/{{ device.id }}/power-chart/energy-monthly?months=12');
     const data = await resp.json();
     if (charts['energy-month-chart']) charts['energy-month-chart'].destroy();
-    charts['energy-month-chart'] = makeBarChart('energy-month-chart', 'Energy this month', '#EC4899', 'kWh', data.months, data.energy_month);
+    charts['energy-month-chart'] = makeBarChart('energy-month-chart', 'Energy by month', '#EC4899', 'kWh', data.months, data.energy_month);
   }
 
   loadChart(6);
