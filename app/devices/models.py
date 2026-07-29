@@ -43,6 +43,12 @@ class Device(SQLModel, table=True):
     temperature: Optional[int] = None    # A/C: target °C
     ac_mode: Optional[str] = None        # A/C: auto/cool/heat/dry/fan
     fan_speed: Optional[int] = None      # A/C: 0=auto 1–4=speeds
+    eco: Optional[bool] = None           # A/C: energy saving mode
+    quiet: Optional[bool] = None         # A/C: quiet/mute mode
+    louvre_position: Optional[int] = None  # A/C: vertical louvre position (device-specific enum, no fixed labels)
+    indoor_temp: Optional[float] = None    # A/C: measured room temperature
+    outdoor_temp: Optional[float] = None   # A/C: measured outdoor temperature
+    ac_energy: Optional[float] = None      # A/C: cumulative electricity used, kWh
     color_temp: Optional[int] = None             # bulbs: 0 (warm) – 100 (cool)
     color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
     color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"

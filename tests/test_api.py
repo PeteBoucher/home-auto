@@ -466,12 +466,51 @@ class TestGroups:
         assert z2m_plug.group_id == group.id
 
 
+class TestHonCommand:
+    @pytest.fixture(name="hon_device")
+    def hon_device_fixture(self, session):
+        from app.devices.models import Device, DeviceType, Integration
+        device = Device(
+            name="Living Room A/C", device_id="ac-unit-1",
+            type=DeviceType.ac, integration=Integration.hon,
+            online=True, state=True, temperature=22, ac_mode="cool", fan_speed=2,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        return device
+
+    def test_eco_quiet_and_louvre_pass_through(self, client, hon_device, session):
+        new_state = {
+            "online": True, "state": True, "temperature": 22, "ac_mode": "cool", "fan_speed": 2,
+            "eco": True, "quiet": True, "louvre_position": 8,
+            "indoor_temp": 24.0, "outdoor_temp": 33.0, "ac_energy": 10.1,
+        }
+        with patch("app.api.devices.hon_client.send_command", new=AsyncMock()) as mock_send, \
+             patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=new_state)):
+            resp = client.post(
+                f"/devices/{hon_device.id}/command",
+                data={"eco": "true", "quiet": "true", "louvre_position": "8"},
+            )
+        assert resp.status_code == 200
+        mock_send.assert_awaited_once_with("ac-unit-1", {"eco": True, "quiet": True, "louvre_position": 8})
+        session.refresh(hon_device)
+        assert hon_device.eco is True
+        assert hon_device.quiet is True
+        assert hon_device.louvre_position == 8
+        assert hon_device.indoor_temp == 24.0
+        assert hon_device.outdoor_temp == 33.0
+        assert hon_device.ac_energy == 10.1
+
+
 class TestHonImport:
     def test_import_seeds_initial_state(self, client, session):
         from app.devices.models import Device
         state = {
             "online": True, "state": True, "temperature": 21,
             "ac_mode": "cool", "fan_speed": 2,
+            "eco": True, "quiet": False, "louvre_position": 5,
+            "indoor_temp": 23.5, "outdoor_temp": 30.0, "ac_energy": 8.2,
         }
         with patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=state)):
             resp = client.post("/devices/hon/ac-unit-1", data={"name": "Living Room A/C", "type": "ac"})
@@ -483,6 +522,12 @@ class TestHonImport:
         assert device.temperature == 21
         assert device.ac_mode == "cool"
         assert device.fan_speed == 2
+        assert device.eco is True
+        assert device.quiet is False
+        assert device.louvre_position == 5
+        assert device.indoor_temp == 23.5
+        assert device.outdoor_temp == 30.0
+        assert device.ac_energy == 8.2
 
     def test_import_already_registered_409(self, client, session):
         from app.devices.models import Device, DeviceType, Integration
