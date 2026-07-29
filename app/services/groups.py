@@ -61,7 +61,11 @@ async def delete_group(session: Session, group: DeviceGroup) -> None:
 
 async def send_group_command(session: Session, group: DeviceGroup, command: dict) -> None:
     """Command every member of the group. Zigbee members get a single native
-    Zigbee groupcast; every other member is commanded individually."""
+    Zigbee groupcast; every other member is commanded individually.
+
+    Commanding the group is treated as re-syncing it: any member previously
+    detached via group_override (see propagate_member_change) rejoins.
+    """
     members = list(session.exec(select(Device).where(Device.group_id == group.id)).all())
     zigbee_members = [m for m in members if m.integration == Integration.zigbee2mqtt]
     other_members = [m for m in members if m.integration != Integration.zigbee2mqtt]
@@ -72,10 +76,13 @@ async def send_group_command(session: Session, group: DeviceGroup, command: dict
             await mqtt_client.publish(f"{mqtt_client.PREFIX}/{group.zigbee_group_name}/set", payload)
         for m in zigbee_members:
             _apply_command_locally(m, command)
+            m.group_override = False
             session.add(m)
         session.commit()
 
     for m in other_members:
+        m.group_override = False
+        session.add(m)
         await apply_device_command(session, m, command)
 
     _apply_command_locally(group, command)
@@ -105,10 +112,16 @@ def _apply_command_locally(target, command: dict) -> None:
 async def propagate_member_change(device_id: int) -> None:
     """Whenever one grouped device's confirmed state changes (via MQTT, Tuya
     polling, an automation, or a direct per-device command), pull every other
-    member of its group into matching state/brightness/colour."""
+    member of its group into matching state/brightness/colour.
+
+    A member with group_override set (see api/devices.py send_command) has been
+    deliberately taken out of sync via its own card — e.g. for task lighting —
+    and neither pushes its own changes to the group nor receives them, until
+    the group itself is next commanded (send_group_command clears the flag).
+    """
     with Session(engine) as session:
         device = session.get(Device, device_id)
-        if not device or not device.group_id:
+        if not device or not device.group_id or device.group_override:
             return
         group = session.get(DeviceGroup, device.group_id)
         if not group:
@@ -124,7 +137,9 @@ async def propagate_member_change(device_id: int) -> None:
         session.commit()
 
         siblings = list(session.exec(
-            select(Device).where(Device.group_id == group.id, Device.id != device.id)
+            select(Device).where(
+                Device.group_id == group.id, Device.id != device.id, Device.group_override == False,  # noqa: E712
+            )
         ).all())
         for sib in siblings:
             command: dict = {}

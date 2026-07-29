@@ -465,6 +465,24 @@ class TestGroups:
         assert z2m_bulb.group_id is None
         assert z2m_plug.group_id == group.id
 
+    def test_individual_command_sets_override(self, client, z2m_bulb, session):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post("/groups", data={"name": "Lights", "device_ids": [str(z2m_bulb.id)]})
+
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()):
+            resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"state": "true"})
+        assert resp.status_code == 200
+        assert "Independent" in resp.text
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.group_override is True
+
+    def test_command_on_ungrouped_device_does_not_set_override(self, client, z2m_bulb, session):
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()):
+            client.post(f"/devices/{z2m_bulb.id}/command", data={"state": "true"})
+        session.refresh(z2m_bulb)
+        assert z2m_bulb.group_override is False
+
 
 class TestHonCommand:
     @pytest.fixture(name="hon_device")

@@ -32,6 +32,7 @@ class Device(SQLModel, table=True):
     name: str
     room: Optional[str] = None            # free-text install location, e.g. "Lounge"
     group_id: Optional[int] = Field(default=None, foreign_key="devicegroup.id")
+    group_override: bool = Field(default=False)  # detached from group sync until the group is next commanded
     device_id: str = Field(unique=True)  # Z2M: friendly_name; Tuya: device ID
     local_key: str = Field(default="")
     ip_address: str = Field(default="")

@@ -31,6 +31,7 @@ def init_db() -> None:
             "ALTER TABLE powersample ADD COLUMN energy_today REAL",
             "ALTER TABLE powersample ADD COLUMN energy_month REAL",
             "ALTER TABLE device ADD COLUMN group_id INTEGER REFERENCES devicegroup(id)",
+            "ALTER TABLE device ADD COLUMN group_override INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE device ADD COLUMN eco INTEGER",
             "ALTER TABLE device ADD COLUMN quiet INTEGER",
             "ALTER TABLE device ADD COLUMN louvre_position INTEGER",

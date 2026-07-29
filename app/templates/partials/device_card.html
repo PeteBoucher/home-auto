@@ -11,6 +11,13 @@
     </span>
   </div>
 
+  {% if device.group_id and device.group_override %}
+  <div class="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5 -mt-2">
+    <i class="bi bi-unlock"></i>
+    Independent — controlling the group will resync it
+  </div>
+  {% endif %}
+
   {% if device.type.value == "sensor" %}
   <div class="flex items-center justify-around py-2">
     <div class="text-center">

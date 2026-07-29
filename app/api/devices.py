@@ -284,6 +284,11 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         command["color_rgb"] = str(form["color_rgb"])
 
     if device.integration in (Integration.tuya, Integration.zigbee2mqtt):
+        if device.group_id and not device.group_override:
+            # Commanding this device directly from its own card detaches it from
+            # group sync (e.g. task lighting) until the group itself is commanded.
+            device.group_override = True
+            session.add(device)
         await apply_device_command(session, device, command)
 
     elif device.integration == Integration.hon:

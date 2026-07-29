@@ -196,3 +196,68 @@ class TestPropagateMemberChange:
 
         session.refresh(group)
         assert group.brightness == 77
+
+
+class TestGroupOverride:
+    def test_overridden_source_does_not_propagate(self, engine, session, z2m_bulb, z2m_bulb2):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            asyncio.run(groups_service.create_group(session, "Lights", [z2m_bulb.id, z2m_bulb2.id]))
+
+        z2m_bulb.group_override = True
+        z2m_bulb.state = True
+        session.add(z2m_bulb)
+        session.commit()
+
+        with patch("app.services.groups.engine", engine), \
+             patch("app.services.groups.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(groups_service.propagate_member_change(z2m_bulb.id))
+
+        mock_pub.assert_not_awaited()
+        session.refresh(z2m_bulb2)
+        assert z2m_bulb2.state is False
+
+    def test_overridden_sibling_is_skipped(self, engine, session, z2m_bulb, z2m_bulb2):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            asyncio.run(groups_service.create_group(session, "Lights", [z2m_bulb.id, z2m_bulb2.id]))
+
+        z2m_bulb2.group_override = True
+        session.add(z2m_bulb2)
+        session.commit()
+
+        z2m_bulb.state = True
+        session.add(z2m_bulb)
+        session.commit()
+
+        with patch("app.services.groups.engine", engine), \
+             patch("app.services.groups.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(groups_service.propagate_member_change(z2m_bulb.id))
+
+        mock_pub.assert_not_awaited()
+        session.refresh(z2m_bulb2)
+        assert z2m_bulb2.state is False
+
+    def test_group_command_clears_override_on_all_members(self, session, z2m_bulb, tuya_bulb):
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            group = asyncio.run(groups_service.create_group(session, "Mixed", [z2m_bulb.id, tuya_bulb.id]))
+
+        z2m_bulb.group_override = True
+        tuya_bulb.group_override = True
+        session.add(z2m_bulb)
+        session.add(tuya_bulb)
+        session.commit()
+
+        with patch("app.services.groups.mqtt_client.publish", new=AsyncMock()), \
+             patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()), \
+             patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value={
+                 "online": True, "state": True, "brightness": 80,
+                 "color_temp": 50, "color_mode": "white", "color_rgb": None,
+             })):
+            asyncio.run(groups_service.send_group_command(session, group, {"state": True}))
+
+        session.refresh(z2m_bulb)
+        session.refresh(tuya_bulb)
+        assert z2m_bulb.group_override is False
+        assert tuya_bulb.group_override is False
