@@ -64,6 +64,13 @@ async def get_state(device_id: str) -> dict[str, Any]:
     if not a:
         return {"online": False, "state": False, "temperature": 22, "ac_mode": "cool", "fan_speed": 0}
     try:
+        # Sending a command optimistically overwrites this same local attribute
+        # cache with the intended values *before* the network call even happens
+        # (pyhOn's HonCommand.send_parameters -> sync_command_to_params), so
+        # reading it without forcing a real refresh reports "what we asked for,"
+        # not "what's actually true" — a command that silently failed still
+        # looks like it succeeded. force=True always re-fetches from the cloud.
+        await a.update(force=True)
         params = a.attributes.get("parameters", {})
         return {
             "online": True,

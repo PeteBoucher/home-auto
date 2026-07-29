@@ -44,6 +44,7 @@ class _FakeAppliance:
         self.mac_address = unique_id
         self.attributes = {"parameters": parameters}
         self.commands = commands or {}
+        self.update = AsyncMock()
 
 
 @pytest.fixture(autouse=True)
@@ -87,6 +88,15 @@ class TestGetState:
             "indoor_temp": 27.0,
             "outdoor_temp": 38.0,
         }
+
+    def test_forces_a_real_refresh_not_the_optimistic_cache(self):
+        # sync_command_to_params overwrites the local attribute cache with
+        # whatever a command *intended* to send, before the network call even
+        # happens — get_state must force a real re-fetch, not trust that cache.
+        appliance = _FakeAppliance("ac-1", _FULL_PARAMS)
+        _set_appliances(appliance)
+        asyncio.run(hon.get_state("ac-1"))
+        appliance.update.assert_awaited_once_with(force=True)
 
     def test_unknown_appliance_returns_offline_fallback(self):
         _set_appliances()
