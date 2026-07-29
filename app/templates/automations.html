@@ -31,11 +31,28 @@ function updateTriggerFields() {
 
 function updateTriggerValueInput() {
   const field = document.getElementById('trigger_field')?.value;
+  const operator = document.getElementById('trigger_operator')?.value;
   if (!field) return;
   const container = document.getElementById('trigger-value-container');
   const currentValue = container.querySelector('[name="trigger_value"]')?.value || '';
+  const currentCompare = container.querySelector('[name="trigger_compare_field"]')?.value || '';
   const cls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white';
-  if (field === 'state' || field === 'online') {
+  if (operator === 'within') {
+    const compareFields = [
+      ['temperature', 'Temperature — selected'],
+      ['indoor_temp', 'Temperature — indoor'],
+      ['outdoor_temp', 'Temperature — outdoor'],
+      ['brightness', 'Brightness'],
+    ];
+    const opts = compareFields.map(([v, label]) => `<option value="${v}" ${currentCompare === v ? 'selected' : ''}>${label}</option>`).join('');
+    const numVal = ['true', 'false'].includes(currentValue) ? '' : currentValue;
+    container.innerHTML = `<div class="flex gap-2 items-center">
+      <input type="number" name="trigger_value" value="${numVal}"
+        class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="&plusmn;2">
+      <span class="text-xs text-gray-400 flex-shrink-0">of</span>
+      <select name="trigger_compare_field" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">${opts}</select>
+    </div>`;
+  } else if (field === 'state' || field === 'online') {
     container.innerHTML = `<select name="trigger_value" class="${cls}">
       <option value="true" ${currentValue === 'true' ? 'selected' : ''}>On / Online</option>
       <option value="false" ${currentValue === 'false' ? 'selected' : ''}>Off / Offline</option>

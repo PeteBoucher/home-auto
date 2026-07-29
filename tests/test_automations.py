@@ -234,6 +234,86 @@ class TestCheckStateTriggersDuringRedAlert:
         mock_pub.assert_not_awaited()
 
 
+class TestWithinTrigger:
+    def test_eval_condition_true_when_within_tolerance(self):
+        state = {"outdoor_temp": 24.0, "temperature": 22}
+        assert auto_engine._eval_condition("outdoor_temp", "within", "2", state, "temperature") is True
+
+    def test_eval_condition_false_when_outside_tolerance(self):
+        state = {"outdoor_temp": 30.0, "temperature": 22}
+        assert auto_engine._eval_condition("outdoor_temp", "within", "2", state, "temperature") is False
+
+    def test_eval_condition_true_at_exact_boundary(self):
+        state = {"outdoor_temp": 24.0, "temperature": 22}
+        assert auto_engine._eval_condition("outdoor_temp", "within", "2.0", state, "temperature") is True
+
+    def test_eval_condition_false_without_compare_field(self):
+        state = {"outdoor_temp": 23.0, "temperature": 22}
+        assert auto_engine._eval_condition("outdoor_temp", "within", "2", state, None) is False
+
+    def test_eval_condition_false_when_compare_field_missing_from_state(self):
+        state = {"outdoor_temp": 23.0}
+        assert auto_engine._eval_condition("outdoor_temp", "within", "2", state, "temperature") is False
+
+    def test_fire_sends_command_to_hon_device(self):
+        from app.devices.models import DeviceType
+
+        auto = Automation(
+            id=1, name="Cool enough, shut off", enabled=True,
+            trigger_type=TriggerType.device_state, action_device_id=1, action_type="set_state_off",
+        )
+        device = Device(
+            id=1, name="Living Room A/C", device_id="ac-unit-1",
+            type=DeviceType.ac, integration=Integration.hon,
+        )
+        with (
+            patch("app.services.automation_engine.Session") as mock_session_cls,
+            patch("app.services.automation_engine.hon_client.send_command", new=AsyncMock()) as mock_send,
+        ):
+            mock_session_cls.return_value.__enter__.return_value.get.return_value = device
+            asyncio.run(auto_engine._fire(auto))
+        mock_send.assert_awaited_once_with("ac-unit-1", {"state": False})
+
+    def test_end_to_end_fires_once_on_rising_edge(self, engine, session):
+        from app.devices.models import DeviceType
+
+        auto_engine._last_eval.clear()
+        ac = Device(
+            name="Living Room A/C", device_id="ac-unit-1",
+            type=DeviceType.ac, integration=Integration.hon, online=True, state=True, temperature=22,
+        )
+        session.add(ac)
+        session.commit()
+        session.refresh(ac)
+        rule = Automation(
+            name="Cool enough, shut off", enabled=True,
+            trigger_type=TriggerType.device_state, trigger_device_id=ac.id,
+            trigger_field="outdoor_temp", trigger_operator="within", trigger_value="2",
+            trigger_compare_field="temperature",
+            action_device_id=ac.id, action_type="set_state_off",
+        )
+        session.add(rule)
+        session.commit()
+
+        far_state = {"outdoor_temp": 30, "temperature": 22, "state": True}
+        near_state = {"outdoor_temp": 23, "temperature": 22, "state": True}
+
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.red_alert.is_active", return_value=False),
+            patch("app.services.automation_engine.hon_client.send_command", new=AsyncMock()) as mock_send,
+        ):
+            asyncio.run(auto_engine.check_state_triggers(ac.id, far_state))
+            mock_send.assert_not_awaited()
+
+            asyncio.run(auto_engine.check_state_triggers(ac.id, near_state))
+            mock_send.assert_awaited_once_with("ac-unit-1", {"state": False})
+
+            # still within tolerance on the next poll — edge-triggered, must not refire
+            asyncio.run(auto_engine.check_state_triggers(ac.id, near_state))
+            mock_send.assert_awaited_once()
+
+
 class TestSunTriggers:
     def setup_method(self):
         from app.services.scheduler import scheduler

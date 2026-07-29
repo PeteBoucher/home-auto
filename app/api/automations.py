@@ -35,6 +35,7 @@ async def _parse_form(request: Request, auto: Automation | None = None) -> Autom
     auto.trigger_field = str(form.get("trigger_field", "")) or None
     auto.trigger_operator = str(form.get("trigger_operator", "eq")) or "eq"
     auto.trigger_value = str(form.get("trigger_value", "")) or None
+    auto.trigger_compare_field = str(form.get("trigger_compare_field", "")) or None
     auto.trigger_sun_event = str(form.get("trigger_sun_event", "")) or None
     raw_offset = form.get("trigger_sun_offset")
     auto.trigger_sun_offset = int(str(raw_offset)) if raw_offset not in (None, "") else 0

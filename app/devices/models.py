@@ -107,8 +107,9 @@ class Automation(SQLModel, table=True):
     trigger_time: Optional[str] = None                                       # "HH:MM" — time triggers
     trigger_device_id: Optional[int] = Field(default=None, foreign_key="device.id")  # state triggers
     trigger_field: Optional[str] = None                                      # "state", "brightness", "temperature"
-    trigger_operator: Optional[str] = None                                   # "eq", "ne", "gt", "lt"
-    trigger_value: Optional[str] = None
+    trigger_operator: Optional[str] = None                                   # "eq", "ne", "gt", "lt", "within"
+    trigger_value: Optional[str] = None                                      # "within": tolerance, not an absolute value
+    trigger_compare_field: Optional[str] = None                              # "within" only — other field on the same device to compare trigger_field against
     trigger_sun_event: Optional[str] = None                                  # "sunrise" or "sunset" — sun triggers
     trigger_sun_offset: Optional[int] = None                                 # minutes; negative = before, positive = after
 

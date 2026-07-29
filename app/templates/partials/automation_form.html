@@ -74,23 +74,41 @@
                 class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
           <option value="state" {% if is_edit and auto.trigger_field == 'state' %}selected{% endif %}>On/Off state</option>
           <option value="brightness" {% if is_edit and auto.trigger_field == 'brightness' %}selected{% endif %}>Brightness</option>
-          <option value="temperature" {% if is_edit and auto.trigger_field == 'temperature' %}selected{% endif %}>Temperature (°C)</option>
+          <option value="temperature" {% if is_edit and auto.trigger_field == 'temperature' %}selected{% endif %}>Temperature — selected (°C)</option>
+          <option value="indoor_temp" {% if is_edit and auto.trigger_field == 'indoor_temp' %}selected{% endif %}>Temperature — indoor (°C)</option>
+          <option value="outdoor_temp" {% if is_edit and auto.trigger_field == 'outdoor_temp' %}selected{% endif %}>Temperature — outdoor (°C)</option>
           <option value="online" {% if is_edit and auto.trigger_field == 'online' %}selected{% endif %}>Online/Offline</option>
           <option value="media_state" {% if is_edit and auto.trigger_field == 'media_state' %}selected{% endif %}>Media state (Fire TV)</option>
           <option value="app_id" {% if is_edit and auto.trigger_field == 'app_id' %}selected{% endif %}>App ID (Fire TV)</option>
         </select>
-        <select name="trigger_operator"
+        <select name="trigger_operator" id="trigger_operator" onchange="updateTriggerValueInput()"
                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
           <option value="eq" {% if is_edit and auto.trigger_operator == 'eq' %}selected{% endif %}>=</option>
           <option value="ne" {% if is_edit and auto.trigger_operator == 'ne' %}selected{% endif %}>≠</option>
           <option value="gt" {% if is_edit and auto.trigger_operator == 'gt' %}selected{% endif %}>&gt;</option>
           <option value="lt" {% if is_edit and auto.trigger_operator == 'lt' %}selected{% endif %}>&lt;</option>
+          <option value="within" {% if is_edit and auto.trigger_operator == 'within' %}selected{% endif %}>within ± of</option>
         </select>
       </div>
       <div id="trigger-value-container">
         {% set tf = auto.trigger_field if is_edit else 'state' %}
+        {% set top = auto.trigger_operator if is_edit else 'eq' %}
         {% set tv = auto.trigger_value if is_edit else 'true' %}
-        {% if tf in ('state', 'online') %}
+        {% set tcf = auto.trigger_compare_field if is_edit else '' %}
+        {% if top == 'within' %}
+          <div class="flex gap-2 items-center">
+            <input type="number" name="trigger_value" value="{{ tv if tv not in ('true', 'false') else '' }}"
+                   class="w-20 border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="±2">
+            <span class="text-xs text-gray-400 flex-shrink-0">of</span>
+            <select name="trigger_compare_field"
+                    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="temperature" {% if tcf == 'temperature' %}selected{% endif %}>Temperature — selected</option>
+              <option value="indoor_temp" {% if tcf == 'indoor_temp' %}selected{% endif %}>Temperature — indoor</option>
+              <option value="outdoor_temp" {% if tcf == 'outdoor_temp' %}selected{% endif %}>Temperature — outdoor</option>
+              <option value="brightness" {% if tcf == 'brightness' %}selected{% endif %}>Brightness</option>
+            </select>
+          </div>
+        {% elif tf in ('state', 'online') %}
           <select name="trigger_value"
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="true" {% if tv == 'true' %}selected{% endif %}>On / Online</option>

@@ -9,6 +9,7 @@ from app.db import engine
 from app.devices.models import Automation, Device, Event, Integration, TriggerType
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
+from app.devices import hon as hon_client
 from app.services import red_alert
 from app.services.weather import get_sun_times
 
@@ -73,13 +74,25 @@ async def _fire(automation: Automation) -> None:
         if "brightness" in command:
             payload["brightness"] = round(command["brightness"] * 2.54)
         await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
+    elif device.integration == Integration.hon:
+        await hon_client.send_command(device.device_id, command)
 
 
-def _eval_condition(field: str, operator: str, trigger_value: str, state: dict) -> bool:
+def _eval_condition(field: str, operator: str, trigger_value: str, state: dict, compare_field: str | None = None) -> bool:
     raw = state.get(field)
     if raw is None:
         return False
     try:
+        if operator == "within":
+            # trigger_value is a tolerance, not an absolute value — true when
+            # `field` is within that many units of `compare_field` on the same
+            # device's state, e.g. outdoor_temp within 2 of temperature (target).
+            if not compare_field:
+                return False
+            other = state.get(compare_field)
+            if other is None:
+                return False
+            return abs(float(raw) - float(other)) <= float(trigger_value)
         if field in ("state", "online"):
             expected = trigger_value.lower() in ("true", "on", "1")
             actual = bool(raw)
@@ -113,7 +126,7 @@ async def check_state_triggers(device_id: int, state: dict) -> None:
     for auto in automations:
         if not auto.trigger_field or not auto.trigger_operator or auto.trigger_value is None:
             continue
-        met = _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state)
+        met = _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state, auto.trigger_compare_field)
         was_met = _last_eval.get(auto.id, False)
         _last_eval[auto.id] = met
         if met and not was_met:

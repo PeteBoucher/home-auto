@@ -601,3 +601,26 @@ class TestAcChart:
         assert data["temperature"][0] == 22
         assert data["indoor_temp"][0] == 24.5
         assert data["outdoor_temp"][0] == 31.0
+
+
+class TestAutomationWithinTrigger:
+    def test_create_captures_compare_field(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Cool enough, shut off",
+            "enabled": "1",
+            "trigger_type": "device_state",
+            "trigger_device_id": str(z2m_bulb.id),
+            "trigger_field": "outdoor_temp",
+            "trigger_operator": "within",
+            "trigger_value": "2",
+            "trigger_compare_field": "temperature",
+            "action_device_id": str(z2m_bulb.id),
+            "action_type": "set_state_off",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Cool enough, shut off")).first()
+        assert auto is not None
+        assert auto.trigger_operator == "within"
+        assert auto.trigger_value == "2"
+        assert auto.trigger_compare_field == "temperature"

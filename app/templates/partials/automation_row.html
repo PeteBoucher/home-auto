@@ -1,4 +1,4 @@
-{% set field_labels = {"state": "state", "brightness": "brightness", "temperature": "temperature (°C)", "online": "online"} %}
+{% set field_labels = {"state": "state", "brightness": "brightness", "temperature": "selected temp (°C)", "indoor_temp": "indoor temp (°C)", "outdoor_temp": "outdoor temp (°C)", "online": "online"} %}
 {% set op_labels = {"eq": "=", "ne": "≠", "gt": ">", "lt": "<"} %}
 {% set tdev = devices_by_id.get(auto.trigger_device_id) %}
 {% set adev = devices_by_id.get(auto.action_device_id) %}
@@ -14,6 +14,10 @@
         {% elif off > 0 %}{{ off }} min after {{ auto.trigger_sun_event }}
         {% else %}{{ -off }} min before {{ auto.trigger_sun_event }}
         {% endif %}
+      {% elif auto.trigger_operator == 'within' %}
+        When <span class="font-medium">{{ tdev.name if tdev else 'unknown device' }}</span>
+        {{ field_labels.get(auto.trigger_field, auto.trigger_field) }}
+        is within {{ auto.trigger_value }}° of {{ field_labels.get(auto.trigger_compare_field, auto.trigger_compare_field) }}
       {% else %}
         When <span class="font-medium">{{ tdev.name if tdev else 'unknown device' }}</span>
         {{ field_labels.get(auto.trigger_field, auto.trigger_field) }}

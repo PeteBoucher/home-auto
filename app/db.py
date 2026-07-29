@@ -22,6 +22,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN energy REAL",
             "ALTER TABLE automation ADD COLUMN trigger_sun_event TEXT",
             "ALTER TABLE automation ADD COLUMN trigger_sun_offset INTEGER",
+            "ALTER TABLE automation ADD COLUMN trigger_compare_field TEXT",
             "ALTER TABLE device ADD COLUMN sensor_temperature REAL",
             "ALTER TABLE device ADD COLUMN humidity REAL",
             "ALTER TABLE device ADD COLUMN battery INTEGER",
