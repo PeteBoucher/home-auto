@@ -270,7 +270,7 @@
         hx-swap="outerHTML"
         class="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
       >‹</button>
-      <span class="text-sm text-gray-600 w-20 text-center">Position {{ current_louvre }}</span>
+      <span class="text-sm text-gray-600 w-20 text-center">{{ louvre_idx + 1 }} of {{ louvre_values|length }}</span>
       <button
         hx-post="/devices/{{ device.id }}/command"
         hx-vals='{"louvre_position": "{{ louvre_values[(louvre_idx + 1) % louvre_values|length] }}"}'
@@ -281,7 +281,7 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-3 gap-2 text-center border-t border-gray-100 pt-3">
+  <div class="grid grid-cols-2 gap-2 text-center border-t border-gray-100 pt-3">
     <div>
       <p class="text-sm font-semibold text-gray-800">{{ device.indoor_temp if device.indoor_temp is not none else "—" }}°C</p>
       <p class="text-xs text-gray-400">Indoor</p>
@@ -289,10 +289,6 @@
     <div>
       <p class="text-sm font-semibold text-gray-800">{{ device.outdoor_temp if device.outdoor_temp is not none else "—" }}°C</p>
       <p class="text-xs text-gray-400">Outdoor</p>
-    </div>
-    <div>
-      <p class="text-sm font-semibold text-gray-800">{{ device.ac_energy if device.ac_energy is not none else "—" }}kWh</p>
-      <p class="text-xs text-gray-400">Energy</p>
     </div>
   </div>
   {% endif %}

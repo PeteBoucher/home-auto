@@ -76,7 +76,6 @@ async def get_state(device_id: str) -> dict[str, Any]:
             "louvre_position": int(_pval(params, "windDirectionVertical", 0)),
             "indoor_temp": float(_pval(params, "tempIndoor")) if _pval(params, "tempIndoor") is not None else None,
             "outdoor_temp": float(_pval(params, "tempOutdoor")) if _pval(params, "tempOutdoor") is not None else None,
-            "ac_energy": float(_pval(params, "totalElectricityUsed")) if _pval(params, "totalElectricityUsed") is not None else None,
         }
     except Exception as e:
         log.warning("hOn get_state error: %s", e)
@@ -89,23 +88,27 @@ async def send_command(device_id: str, command: dict) -> None:
         log.warning("hOn appliance not found: %s", device_id)
         return
     try:
-        cmd = a.commands.get("startProgram")
+        # onOffStatus is locked to 1 on startProgram and to 0 on stopProgram — turning
+        # the unit off isn't a parameter you set, it's a different command you call.
+        cmd_name = "stopProgram" if command.get("state") is False else "startProgram"
+        cmd = a.commands.get(cmd_name)
         if not cmd:
             return
-        if "state" in command:
-            cmd.parameters["onOffStatus"].value = 1 if command["state"] else 0
         if "temperature" in command:
             cmd.parameters["tempSel"].value = command["temperature"]
         if "ac_mode" in command:
-            cmd.parameters["machMode"].value = _MODE_TO_INT.get(command["ac_mode"], 1)
+            # machMode/windSpeed/windDirectionVertical are HonParameterEnum, which
+            # validates against a list of *strings* — an int value raises ValueError
+            # even when it's numerically an allowed option.
+            cmd.parameters["machMode"].value = str(_MODE_TO_INT.get(command["ac_mode"], 1))
         if "fan_speed" in command:
-            cmd.parameters["windSpeed"].value = command["fan_speed"]
+            cmd.parameters["windSpeed"].value = str(command["fan_speed"])
         if "eco" in command:
             cmd.parameters["energySavingStatus"].value = 1 if command["eco"] else 0
         if "quiet" in command:
             cmd.parameters["muteStatus"].value = 1 if command["quiet"] else 0
         if "louvre_position" in command:
-            cmd.parameters["windDirectionVertical"].value = command["louvre_position"]
+            cmd.parameters["windDirectionVertical"].value = str(command["louvre_position"])
         await cmd.send()
     except Exception as e:
         log.warning("hOn send_command error: %s", e)

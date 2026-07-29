@@ -48,7 +48,6 @@ class Device(SQLModel, table=True):
     louvre_position: Optional[int] = None  # A/C: vertical louvre position (device-specific enum, no fixed labels)
     indoor_temp: Optional[float] = None    # A/C: measured room temperature
     outdoor_temp: Optional[float] = None   # A/C: measured outdoor temperature
-    ac_energy: Optional[float] = None      # A/C: cumulative electricity used, kWh
     color_temp: Optional[int] = None             # bulbs: 0 (warm) – 100 (cool)
     color_mode: str = Field(default="white")     # bulbs: "white" or "colour"
     color_rgb: Optional[str] = None              # bulbs in colour mode: "#rrggbb"

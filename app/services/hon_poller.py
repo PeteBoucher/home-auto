@@ -47,7 +47,6 @@ async def poll_hon_devices() -> None:
             db_device.louvre_position = state.get("louvre_position")
             db_device.indoor_temp = state.get("indoor_temp")
             db_device.outdoor_temp = state.get("outdoor_temp")
-            db_device.ac_energy = state.get("ac_energy")
             session.add(db_device)
             reachable.append((device, state))
         session.commit()

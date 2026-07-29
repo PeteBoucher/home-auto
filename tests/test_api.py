@@ -484,7 +484,7 @@ class TestHonCommand:
         new_state = {
             "online": True, "state": True, "temperature": 22, "ac_mode": "cool", "fan_speed": 2,
             "eco": True, "quiet": True, "louvre_position": 8,
-            "indoor_temp": 24.0, "outdoor_temp": 33.0, "ac_energy": 10.1,
+            "indoor_temp": 24.0, "outdoor_temp": 33.0,
         }
         with patch("app.api.devices.hon_client.send_command", new=AsyncMock()) as mock_send, \
              patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=new_state)):
@@ -500,7 +500,6 @@ class TestHonCommand:
         assert hon_device.louvre_position == 8
         assert hon_device.indoor_temp == 24.0
         assert hon_device.outdoor_temp == 33.0
-        assert hon_device.ac_energy == 10.1
 
 
 class TestHonImport:
@@ -510,7 +509,7 @@ class TestHonImport:
             "online": True, "state": True, "temperature": 21,
             "ac_mode": "cool", "fan_speed": 2,
             "eco": True, "quiet": False, "louvre_position": 5,
-            "indoor_temp": 23.5, "outdoor_temp": 30.0, "ac_energy": 8.2,
+            "indoor_temp": 23.5, "outdoor_temp": 30.0,
         }
         with patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=state)):
             resp = client.post("/devices/hon/ac-unit-1", data={"name": "Living Room A/C", "type": "ac"})
@@ -527,7 +526,6 @@ class TestHonImport:
         assert device.louvre_position == 5
         assert device.indoor_temp == 23.5
         assert device.outdoor_temp == 30.0
-        assert device.ac_energy == 8.2
 
     def test_import_already_registered_409(self, client, session):
         from app.devices.models import Device, DeviceType, Integration

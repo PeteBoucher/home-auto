@@ -26,7 +26,7 @@ def hon_device_fixture(session):
 
 _ONLINE_STATE = {
     "online": True, "state": True, "temperature": 22, "ac_mode": "cool", "fan_speed": 2,
-    "eco": True, "quiet": False, "louvre_position": 5, "indoor_temp": 24.5, "outdoor_temp": 31.0, "ac_energy": 12.5,
+    "eco": True, "quiet": False, "louvre_position": 5, "indoor_temp": 24.5, "outdoor_temp": 31.0,
 }
 _OFFLINE_STATE = {"online": False, "state": False, "temperature": 22, "ac_mode": "cool", "fan_speed": 0}
 
@@ -49,7 +49,6 @@ class TestPollHonDevices:
         assert hon_device.louvre_position == 5
         assert hon_device.indoor_temp == 24.5
         assert hon_device.outdoor_temp == 31.0
-        assert hon_device.ac_energy == 12.5
         mock_triggers.assert_awaited_once_with(hon_device.id, _ONLINE_STATE)
 
     def test_unreachable_device_only_marks_offline(self, engine, session, hon_device):

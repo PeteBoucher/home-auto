@@ -8,9 +8,28 @@ from app.devices import hon
 
 
 class _Param:
-    """Stand-in for pyhOn's typed command parameter objects."""
+    """Stand-in for pyhOn's HonParameterRange/Fixed — accepts any value, like the real thing."""
     def __init__(self, value):
         self.value = value
+
+
+class _EnumParam:
+    """Stand-in for pyhOn's HonParameterEnum — validates against a list of *strings*
+    and raises on anything else, exactly like the real pyhOn parameter does. Setting
+    an int here (even one that's numerically an allowed option) must raise."""
+    def __init__(self, value: str, allowed: list[str]):
+        self._value = value
+        self._allowed = allowed
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, v):
+        if not isinstance(v, str) or v not in self._allowed:
+            raise ValueError(f"Allowed values: {self._allowed} But was: {v!r}")
+        self._value = v
 
 
 class _FakeCommand:
@@ -40,7 +59,7 @@ def _set_appliances(*appliances):
 
 
 _FULL_PARAMS = {
-    "onOffStatus": _Param(1),
+    "onOffStatus": _Param("1"),
     "tempSel": _Param(26.0),
     "machMode": _Param(1),
     "windSpeed": _Param(5),
@@ -49,7 +68,6 @@ _FULL_PARAMS = {
     "windDirectionVertical": _Param(5),
     "tempIndoor": _Param(27.0),
     "tempOutdoor": _Param(38.0),
-    "totalElectricityUsed": _Param(12.5),
 }
 
 
@@ -68,7 +86,6 @@ class TestGetState:
             "louvre_position": 5,
             "indoor_temp": 27.0,
             "outdoor_temp": 38.0,
-            "ac_energy": 12.5,
         }
 
     def test_unknown_appliance_returns_offline_fallback(self):
@@ -80,34 +97,82 @@ class TestGetState:
         params = dict(_FULL_PARAMS)
         del params["tempIndoor"]
         del params["tempOutdoor"]
-        del params["totalElectricityUsed"]
         _set_appliances(_FakeAppliance("ac-1", params))
         state = asyncio.run(hon.get_state("ac-1"))
         assert state["indoor_temp"] is None
         assert state["outdoor_temp"] is None
-        assert state["ac_energy"] is None
+
+
+def _make_start_stop_appliance():
+    """An appliance whose startProgram/stopProgram commands use realistic enum
+    validation for machMode/windSpeed/windDirectionVertical, matching the live
+    unit's actual reported allowed values."""
+    def build_cmd():
+        return _FakeCommand({
+            "tempSel": _Param(26),
+            "machMode": _EnumParam("1", ["0", "1", "2", "4", "6"]),
+            "windSpeed": _EnumParam("5", ["1", "2", "3", "5"]),
+            "energySavingStatus": _Param("1"),
+            "muteStatus": _Param(0),
+            "windDirectionVertical": _EnumParam("5", ["2", "4", "5", "6", "8"]),
+        })
+    start_cmd = build_cmd()
+    stop_cmd = build_cmd()
+    appliance = _FakeAppliance("ac-1", _FULL_PARAMS, commands={
+        "startProgram": start_cmd, "stopProgram": stop_cmd,
+    })
+    return appliance, start_cmd, stop_cmd
 
 
 class TestSendCommand:
-    def test_sets_eco_quiet_and_louvre(self):
-        cmd = _FakeCommand({
-            "onOffStatus": _Param(1),
-            "tempSel": _Param(26),
-            "machMode": _Param(1),
-            "windSpeed": _Param(5),
-            "energySavingStatus": _Param(0),
-            "muteStatus": _Param(0),
-            "windDirectionVertical": _Param(5),
-        })
-        appliance = _FakeAppliance("ac-1", _FULL_PARAMS, commands={"startProgram": cmd})
+    def test_ac_mode_is_sent_as_string(self):
+        appliance, start_cmd, _ = _make_start_stop_appliance()
         _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"ac_mode": "cool"}))
+        assert start_cmd.parameters["machMode"].value == "1"
+        start_cmd.send.assert_awaited_once()
 
-        asyncio.run(hon.send_command("ac-1", {"eco": True, "quiet": False, "louvre_position": 8}))
+    def test_fan_speed_is_sent_as_string(self):
+        appliance, start_cmd, _ = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"fan_speed": 3}))
+        assert start_cmd.parameters["windSpeed"].value == "3"
+        start_cmd.send.assert_awaited_once()
 
-        assert cmd.parameters["energySavingStatus"].value == 1
-        assert cmd.parameters["muteStatus"].value == 0
-        assert cmd.parameters["windDirectionVertical"].value == 8
-        cmd.send.assert_awaited_once()
+    def test_louvre_position_is_sent_as_string(self):
+        appliance, start_cmd, _ = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"louvre_position": 8}))
+        assert start_cmd.parameters["windDirectionVertical"].value == "8"
+        start_cmd.send.assert_awaited_once()
+
+    def test_sets_eco_and_quiet(self):
+        appliance, start_cmd, _ = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"eco": True, "quiet": False}))
+        assert start_cmd.parameters["energySavingStatus"].value == 1
+        assert start_cmd.parameters["muteStatus"].value == 0
+
+    def test_turning_off_uses_stop_program(self):
+        appliance, start_cmd, stop_cmd = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"state": False}))
+        stop_cmd.send.assert_awaited_once()
+        start_cmd.send.assert_not_awaited()
+
+    def test_turning_on_uses_start_program(self):
+        appliance, start_cmd, stop_cmd = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"state": True}))
+        start_cmd.send.assert_awaited_once()
+        stop_cmd.send.assert_not_awaited()
+
+    def test_plain_adjustment_without_state_uses_start_program(self):
+        appliance, start_cmd, stop_cmd = _make_start_stop_appliance()
+        _set_appliances(appliance)
+        asyncio.run(hon.send_command("ac-1", {"temperature": 20}))
+        start_cmd.send.assert_awaited_once()
+        stop_cmd.send.assert_not_awaited()
 
     def test_unknown_appliance_is_a_noop(self):
         _set_appliances()
