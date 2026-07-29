@@ -35,7 +35,7 @@ A Python-based web app to unify control and automation of home devices currently
 | Phase | Description | Status |
 | --- | --- | --- |
 | 1 | Tuya device discovery, registration, toggle/brightness/RGB control via dashboard | ✅ Done |
-| 2 | hOn / Haier A/C card (power, mode, temp, fan speed) | ⚠️ Code complete — blocked on Pi by `pyhOn` version `country` kwarg mismatch |
+| 2 | hOn / Haier A/C card (power, mode, temp, fan speed) | ✅ Done — `pyhOn` no longer takes `country`/`language` kwargs as of 0.17.5; `hon.py start()` updated, unblocked 2026-07-29 |
 | 3 | Zigbee2MQTT integration (Mosquitto broker, Zigbee bulb + socket adapter) | ✅ Done |
 | 4 | Automation engine — time cron + device state + sunrise/sunset triggers → cross-device actions, HTMX UI at /automations | ✅ Done |
 | 5 | Event history log — `Event` table, /history page, auto-refreshes every 30s | ✅ Done |
@@ -120,7 +120,7 @@ app/
 
 - **Rolling shutter / persiana** — new patio door has an external tubular-motor shutter. Best fit: Zigbee tubular motor (e.g. Zemismart ZM25TQ) via existing Zigbee2MQTT. Needs `DeviceType.cover`, `position` field, Z2M cover payload handling, open/stop/close card UI, `set_position` automation action.
 - **Tuya bulb scenes/moods** — DPS 25 hex-encoded scene strings for animated presets (breathing, colour cycling); new `set_scene` action type with named-preset dropdown.
-- **hOn Pi fix** — resolve `pyhOn` `country` kwarg mismatch on Raspberry Pi OS.
+- **hOn Haier smart TV** — new TV, controllable via the hOn app per the user, but as of 2026-07-29 it is **not yet paired** in the hOn app — querying the account directly returns only the A/C unit. Nothing to build until it's paired; once it is, re-run discovery to see its actual `appliance_type`/`commands`/`parameters` (Haier TV control likely uses a different command/parameter set than the A/C's `tempSel`/`machMode`/`windSpeed`, needs live introspection, don't guess at it). Also need a UI path — `DeviceType.tv` already exists but its card is hardcoded to the Fire TV's ADB media-state model; hOn TV control would need its own branch (by `integration`) rather than reusing that block as-is.
 - **Fire TV control** — send ADB key events (play/pause, volume, back) from the dashboard. Code complete (`app/devices/firetv.py` `send_key()`, `POST /devices/{id}/key`, card buttons) and unit-tested, but **unverified against real hardware and blocked** on the user's actual device: a Fire TV Stick 4K Select runs Amazon's new Vega OS (Linux-based, not Android), which has no ADB Debugging option at all — Developer Options only exposes "Deep Sleep". This also means the existing ADB-based `media_state` polling above won't work against this device either. On hold — see "Fire TV Alexa control" below for the path being considered instead.
 - **Fire TV Alexa control** — since Vega OS blocks ADB entirely, explored routing control through Amazon's Alexa API instead (Fire TV Stick 4K Select is Alexa-enabled). No official public API exists for this; the hobbyist standard is the unofficial `alexapy`/`aioamazondevices` library (used by Home Assistant's `alexa_media_player`), which authenticates as the user (email/password + 2FA) by mimicking the Alexa app — not an OAuth app credential, and Amazon can break it without notice. Also unconfirmed whether it can control Fire TV (vs. just Echo speakers) and how fast play/pause state updates arrive. Paused before implementation — user put this on hold 2026-07-14.
 - **History filtering** — filter /history by category or automation name.
