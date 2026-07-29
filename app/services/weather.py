@@ -1,6 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import httpx
+from astral import LocationInfo
+from astral.sun import sun as astral_sun
 
 # WMO weather codes that indicate precipitation
 _RAIN_CODES = frozenset([
@@ -24,17 +26,35 @@ async def is_raining(lat: float, lon: float) -> bool:
     return code in _RAIN_CODES
 
 
-async def get_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:
-    """Returns (sunrise, sunset) as naive local datetimes for today."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(_URL, params={
-            "latitude": lat,
-            "longitude": lon,
-            "daily": "sunrise,sunset",
-            "timezone": "auto",
-        })
-        resp.raise_for_status()
-    daily = resp.json()["daily"]
-    sunrise = datetime.fromisoformat(daily["sunrise"][0])
-    sunset = datetime.fromisoformat(daily["sunset"][0])
+def _offline_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:
+    """Pure astronomical calculation, no network required — used when
+    Open-Meteo is unreachable so sun-triggered automations survive internet
+    outages."""
+    observer = LocationInfo(latitude=lat, longitude=lon).observer
+    s = astral_sun(observer, date=date.today())
+    sunrise = s["sunrise"].astimezone().replace(tzinfo=None)
+    sunset = s["sunset"].astimezone().replace(tzinfo=None)
     return sunrise, sunset
+
+
+async def get_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:
+    """Returns (sunrise, sunset) as naive local datetimes for today.
+
+    Prefers Open-Meteo; falls back to an offline astronomical calculation
+    if the network request fails for any reason.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(_URL, params={
+                "latitude": lat,
+                "longitude": lon,
+                "daily": "sunrise,sunset",
+                "timezone": "auto",
+            })
+            resp.raise_for_status()
+        daily = resp.json()["daily"]
+        sunrise = datetime.fromisoformat(daily["sunrise"][0])
+        sunset = datetime.fromisoformat(daily["sunset"][0])
+        return sunrise, sunset
+    except Exception:
+        return _offline_sun_times(lat, lon)

@@ -46,7 +46,8 @@ A Python-based web app to unify control and automation of home devices currently
 - **Fire TV** — ADB polling every 5s; `media_state` and `app_id` as automation trigger fields; device card shows playback state. Only works on Android-based Fire OS devices — see Backlog blocker for Vega OS.
 - **Sunrise/sunset automation triggers** — new `TriggerType.sun`; sun times fetched daily from Open-Meteo (`app/services/weather.py get_sun_times()`, no API key needed) using `LAT`/`LON` env vars, same location config the rain automation already used. Automations pick sunrise or sunset plus a +/- minute offset; `refresh_sun_jobs()` in `automation_engine.py` reschedules one-shot APScheduler jobs daily and whenever a sun rule is created/edited/toggled. Silently no-ops if `LAT`/`LON` aren't set, same as the rain check.
 - **Zigbee RGB / colour-temperature bulb control** — `app/devices/zigbee_color.py` converts between the dashboard's 0-100 slider scale and Zigbee2MQTT's native units (mireds for colour temp, hue/saturation for RGB), mirroring the existing Tuya hsv-hex helpers. Wired into both directions: `api/devices.py send_command()` forwards `color_temp`/`color_rgb`/`color_mode` to Z2M's `/set` topic, and `devices/mqtt.py _apply_state()` parses inbound `color_temp`/`color`/`color_mode` so the card reflects the bulb's real reported state. Gated by the existing `Device.dimmable` flag — the Zigbee discovery import form already had a "Dimmable / colour controls" checkbox, but it wasn't set for the two Innr RB 282 C bulbs (Dining room uplighter, Porch light) at import time; fixed directly in the DB.
-- **Red alert covers Zigbee bulbs too** — `red_alert.py` previously only flashed Tuya bulbs (`get_tuya_bulbs()` + persistent-socket `flash_sync`). Added `mqtt.get_zigbee_bulbs()` (filters by `dimmable`) and an async `_flash_zigbee()`/`_restore_zigbee()` pair so dimmable Zigbee bulbs flash red and restore alongside the Tuya ones. Flash/restore payloads set `"transition": 0` — without it the bulb's default fade blends flash cycles together and can be captured mid-transition. Also fixed a cross-automation bug this surfaced: flashing a bulb rapidly was tripping any `device_state` automation watching that bulb (e.g. "Dining/Lounge sync"), cascading into unrelated devices for the duration of the alert — `automation_engine.check_state_triggers()` now short-circuits while `red_alert.is_active()`.
+- **Red alert covers Zigbee bulbs too** — `red_alert.py` previously only flashed Tuya bulbs (`get_tuya_bulbs()` + persistent-socket `flash_sync`). Added `mqtt.get_zigbee_bulbs()` (filters by `dimmable`) and an async `_flash_zigbee()`/`_restore_zigbee()` pair so dimmable Zigbee bulbs flash red and restore alongside the Tuya ones. Flash/restore payloads set `"transition": 0` — without it the bulb's default fade blends flash cycles together and can be captured mid-transition. Also fixed a cross-automation bug this surfaced: flashing a bulb rapidly was tripping any `device_state` automation watching that bulb (e.g. the old "Dining/Lounge sync" automation, since replaced by Groups below), cascading into unrelated devices for the duration of the alert — `automation_engine.check_state_triggers()` now short-circuits while `red_alert.is_active()`.
+- **Device Groups** — cross-integration groups that stay in sync (state, brightness, colour), new `DeviceGroup` model + `Device.group_id`, `/groups` page, group card on the dashboard. Zigbee members are mirrored into a real Zigbee2MQTT group (`zigbee_group_name`, created/maintained via `bridge/request/group/*` in `devices/mqtt.py`) so a group command is a single native Zigbee groupcast; non-Zigbee members (Tuya, etc.) are commanded individually alongside it — `services/groups.py send_group_command()`. Any confirmed member state change from *any* source (MQTT, Tuya polling, an automation, a direct per-device command) pulls every other member into matching state via `propagate_member_change()`, wired into both `devices/mqtt.py _listen()` and `services/tuya_poller.py`. Extracted the shared single-device command logic into `services/device_commands.py` so the per-device endpoint and group fan-out share one code path. Replaced the old "Dining/Lounge sync on/off" automation pair with a real group, **"Lounge & Dining lights"** (Standard lamp + Uplighter), created 2026-07-22.
 
 ## Known Gotchas
 
@@ -62,14 +63,15 @@ app/
 │
 ├── api/
 │   ├── devices.py                 # All device HTTP routes (toggle, command, schedule, import, charts)
+│   ├── groups.py                  # /groups CRUD + group command endpoint
 │   ├── automations.py             # /automations CRUD
 │   ├── alerts.py                  # /alert red-alert endpoints
 │   ├── history.py                 # /history event log
 │   └── network.py                 # /network LAN scan + WAN check (_check_wan via TCP to 1.1.1.1:53)
 │
 ├── devices/
-│   ├── models.py                  # SQLModel tables: Device, Schedule, Automation, Event, PowerSample, ClimateSample
-│   ├── mqtt.py                    # aiomqtt listener, _apply_state(), ClimateSample/PowerSample writes, Z2M state.json seed
+│   ├── models.py                  # SQLModel tables: Device, DeviceGroup, Schedule, Automation, Event, PowerSample, ClimateSample, EnergyDailySummary
+│   ├── mqtt.py                    # aiomqtt listener, _apply_state(), build_set_payload(), Zigbee group management, Z2M state.json seed
 │   ├── tuya.py                    # tinytuya LAN commands
 │   ├── hon.py                     # pyhOn Haier cloud API
 │   └── firetv.py                  # androidtv ADB polling (ENABLED flag, off by default)
@@ -77,6 +79,8 @@ app/
 ├── services/
 │   ├── automation_engine.py       # check_state_triggers(), fire_action(), refresh_sun_jobs()
 │   ├── automations.py             # load_time_automations(), APScheduler job wiring
+│   ├── device_commands.py         # apply_device_command() — shared Tuya/Zigbee single-device command logic
+│   ├── groups.py                  # create/delete/set_group_members(), send_group_command(), propagate_member_change()
 │   ├── scheduler.py               # apply_schedule(), remove_schedule() for device on/off timers
 │   ├── red_alert.py               # flash-all-bulbs red alert with persistent Tuya sockets
 │   ├── tuya_poller.py             # background Tuya state polling

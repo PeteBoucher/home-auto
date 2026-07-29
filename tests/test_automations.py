@@ -5,10 +5,55 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.weather import is_raining
+from app.services.weather import get_sun_times, is_raining
 import app.services.automations as auto_module
 import app.services.automation_engine as auto_engine
 from app.devices.models import Automation, Device, DeviceType, Integration, TriggerType
+
+
+class TestGetSunTimes:
+    def test_returns_parsed_open_meteo_times(self):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"daily": {
+            "sunrise": ["2026-07-27T07:12"],
+            "sunset": ["2026-07-27T21:03"],
+        }}
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("app.services.weather.httpx.AsyncClient", return_value=mock_client):
+            sunrise, sunset = asyncio.run(get_sun_times(36.44, -5.27))
+        assert sunrise == datetime(2026, 7, 27, 7, 12)
+        assert sunset == datetime(2026, 7, 27, 21, 3)
+
+    def test_falls_back_to_offline_calculation_when_unreachable(self):
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(side_effect=OSError("Temporary failure in name resolution"))
+
+        with patch("app.services.weather.httpx.AsyncClient", return_value=mock_client):
+            sunrise, sunset = asyncio.run(get_sun_times(36.44, -5.27))
+        # No network involved — just sanity-check it's a real (naive) sunrise/sunset pair
+        assert sunrise.tzinfo is None
+        assert sunset.tzinfo is None
+        assert sunrise < sunset
+
+    def test_offline_fallback_used_on_http_error_status(self):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = Exception("503 Service Unavailable")
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = AsyncMock(return_value=mock_resp)
+
+        with patch("app.services.weather.httpx.AsyncClient", return_value=mock_client), \
+             patch("app.services.weather._offline_sun_times", return_value=(datetime(2026, 7, 27, 7, 0), datetime(2026, 7, 27, 21, 0))) as mock_offline:
+            result = asyncio.run(get_sun_times(36.44, -5.27))
+        mock_offline.assert_called_once_with(36.44, -5.27)
+        assert result == (datetime(2026, 7, 27, 7, 0), datetime(2026, 7, 27, 21, 0))
 
 
 class TestIsRaining:
