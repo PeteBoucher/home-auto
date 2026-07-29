@@ -239,7 +239,7 @@
       hx-swap="outerHTML"
       class="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
     >
-      {% for label, val in [("Auto", 0), ("Low", 1), ("Med", 2), ("High", 3), ("Turbo", 4)] %}
+      {% for label, val in [("Auto", 5), ("Low", 3), ("Med", 2), ("High", 1)] %}
       <option value="{{ val }}" {% if device.fan_speed == val %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
