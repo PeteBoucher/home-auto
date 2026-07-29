@@ -143,6 +143,15 @@ class ClimateSample(SQLModel, table=True):
     humidity: Optional[float] = None
 
 
+class AcSample(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    temperature: Optional[int] = None      # selected/target °C
+    indoor_temp: Optional[float] = None    # measured room °C
+    outdoor_temp: Optional[float] = None   # measured outdoor °C
+
+
 class EnergyDailySummary(SQLModel, table=True):
     """One row per device per calendar day, kept indefinitely (unlike PowerSample,
     which is pruned after 7 days) so daily/monthly energy charts have history to show.

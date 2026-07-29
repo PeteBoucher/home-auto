@@ -535,3 +535,51 @@ class TestHonImport:
             resp = client.post("/devices/hon/ac-unit-1", data={"name": "Dup", "type": "ac"})
         assert resp.status_code == 409
         mock_get.assert_not_awaited()
+
+
+class TestAcChart:
+    @pytest.fixture(name="hon_device")
+    def hon_device_fixture(self, session):
+        from app.devices.models import Device, DeviceType, Integration
+        device = Device(
+            name="Living Room A/C", device_id="ac-unit-1",
+            type=DeviceType.ac, integration=Integration.hon,
+            online=True, state=True, temperature=22, ac_mode="cool", fan_speed=2,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        return device
+
+    def test_chart_page(self, client, hon_device):
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart")
+        assert resp.status_code == 200
+        assert "Temperature History" in resp.text
+
+    def test_chart_page_404_for_non_ac(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/ac-chart")
+        assert resp.status_code == 404
+
+    def test_data_empty(self, client, hon_device):
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["timestamps"] == []
+        assert data["temperature"] == []
+        assert data["indoor_temp"] == []
+        assert data["outdoor_temp"] == []
+
+    def test_data_returns_samples(self, client, hon_device, session):
+        from datetime import datetime
+        from app.devices.models import AcSample
+        session.add(AcSample(
+            device_id=hon_device.id, temperature=22, indoor_temp=24.5, outdoor_temp=31.0,
+            timestamp=datetime.utcnow(),
+        ))
+        session.commit()
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
+        data = resp.json()
+        assert len(data["timestamps"]) == 1
+        assert data["temperature"][0] == 22
+        assert data["indoor_temp"][0] == 24.5
+        assert data["outdoor_temp"][0] == 31.0

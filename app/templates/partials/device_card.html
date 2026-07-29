@@ -304,6 +304,12 @@
       <p class="text-xs text-gray-400">Outdoor</p>
     </div>
   </div>
+  <div class="text-right -mt-1">
+    <a href="/devices/{{ device.id }}/ac-chart"
+       class="text-xs text-blue-400 hover:text-blue-600 transition-colors">
+      <i class="bi bi-graph-up"></i> Chart
+    </a>
+  </div>
   {% endif %}
 
   {% if device.type.value == "plug" and device.power is not none %}

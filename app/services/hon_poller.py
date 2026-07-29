@@ -4,7 +4,7 @@ import logging
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Device, Integration
+from app.devices.models import AcSample, Device, Integration
 from app.devices import hon as hon_client
 from app.services.automation_engine import check_state_triggers
 
@@ -48,6 +48,12 @@ async def poll_hon_devices() -> None:
             db_device.indoor_temp = state.get("indoor_temp")
             db_device.outdoor_temp = state.get("outdoor_temp")
             session.add(db_device)
+            session.add(AcSample(
+                device_id=device.id,
+                temperature=db_device.temperature,
+                indoor_temp=db_device.indoor_temp,
+                outdoor_temp=db_device.outdoor_temp,
+            ))
             reachable.append((device, state))
         session.commit()
 

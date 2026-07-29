@@ -3,8 +3,9 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlmodel import select
 
-from app.devices.models import Device, DeviceType, Integration
+from app.devices.models import AcSample, Device, DeviceType, Integration
 from app.services import hon_poller
 
 
@@ -51,6 +52,12 @@ class TestPollHonDevices:
         assert hon_device.outdoor_temp == 31.0
         mock_triggers.assert_awaited_once_with(hon_device.id, _ONLINE_STATE)
 
+        samples = session.exec(select(AcSample).where(AcSample.device_id == hon_device.id)).all()
+        assert len(samples) == 1
+        assert samples[0].temperature == 22
+        assert samples[0].indoor_temp == 24.5
+        assert samples[0].outdoor_temp == 31.0
+
     def test_unreachable_device_only_marks_offline(self, engine, session, hon_device):
         hon_device.online = True
         hon_device.state = True
@@ -66,6 +73,7 @@ class TestPollHonDevices:
         assert hon_device.online is False
         assert hon_device.state is True  # untouched, not overwritten with the offline fallback
         mock_triggers.assert_not_awaited()
+        assert session.exec(select(AcSample).where(AcSample.device_id == hon_device.id)).all() == []
 
     def test_no_devices_is_a_noop(self, engine, session):
         with patch("app.services.hon_poller.engine", engine), \

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from app.db import SessionDep
 from app.devices.models import (
-    ClimateSample, Device, DeviceGroup, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule,
+    AcSample, ClimateSample, Device, DeviceGroup, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule,
 )
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -503,6 +503,30 @@ async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Q
         "timestamps": [s.timestamp.isoformat() for s in samples],
         "temperature": [s.temperature for s in samples],
         "humidity": [s.humidity for s in samples],
+    }
+
+
+@router.get("/{device_id}/ac-chart", response_class=HTMLResponse)
+async def ac_chart_page(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device or device.type != DeviceType.ac:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(request, "ac_chart.html", {"device": device})
+
+
+@router.get("/{device_id}/ac-chart/data")
+async def ac_chart_data(device_id: int, session: SessionDep, hours: int = Query(default=6, ge=1, le=168)):
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    samples = session.exec(
+        select(AcSample)
+        .where(AcSample.device_id == device_id, AcSample.timestamp >= cutoff)
+        .order_by(AcSample.timestamp)
+    ).all()
+    return {
+        "timestamps": [s.timestamp.isoformat() for s in samples],
+        "temperature": [s.temperature for s in samples],
+        "indoor_temp": [s.indoor_temp for s in samples],
+        "outdoor_temp": [s.outdoor_temp for s in samples],
     }
 
 
