@@ -137,6 +137,15 @@ async def hon_import_device(uid: str, request: Request, session: SessionDep):
     )
     session.add(device)
     session.commit()
+    session.refresh(device)
+    state = await hon_client.get_state(uid)
+    device.online = state["online"]
+    device.state = state["state"]
+    device.temperature = state.get("temperature")
+    device.ac_mode = state.get("ac_mode")
+    device.fan_speed = state.get("fan_speed")
+    session.add(device)
+    session.commit()
     return _import_success(device.name)
 
 

@@ -29,6 +29,7 @@ from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
 from app.services.automation_engine import load_time_automations, refresh_sun_jobs
 from app.services.tuya_poller import poll_tuya_devices
+from app.services.hon_poller import poll_hon_devices
 
 def _prune_power_samples() -> None:
     cutoff = datetime.utcnow() - timedelta(days=7)
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
     firetv_task = asyncio.create_task(firetv_client.run()) if firetv_client.ENABLED else None
     scheduler.add_job(check_weather, "interval", minutes=10, next_run_time=datetime.now())
     scheduler.add_job(poll_tuya_devices, "interval", seconds=30, next_run_time=datetime.now())
+    scheduler.add_job(poll_hon_devices, "interval", seconds=60, next_run_time=datetime.now())
     scheduler.add_job(_prune_power_samples, "interval", hours=24)
     scheduler.add_job(refresh_sun_jobs, "interval", hours=24, next_run_time=datetime.now())
     scheduler.start()

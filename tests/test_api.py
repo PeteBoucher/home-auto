@@ -464,3 +464,31 @@ class TestGroups:
         session.refresh(z2m_plug)
         assert z2m_bulb.group_id is None
         assert z2m_plug.group_id == group.id
+
+
+class TestHonImport:
+    def test_import_seeds_initial_state(self, client, session):
+        from app.devices.models import Device
+        state = {
+            "online": True, "state": True, "temperature": 21,
+            "ac_mode": "cool", "fan_speed": 2,
+        }
+        with patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=state)):
+            resp = client.post("/devices/hon/ac-unit-1", data={"name": "Living Room A/C", "type": "ac"})
+        assert resp.status_code == 200
+        device = session.exec(select(Device).where(Device.device_id == "ac-unit-1")).first()
+        assert device is not None
+        assert device.online is True
+        assert device.state is True
+        assert device.temperature == 21
+        assert device.ac_mode == "cool"
+        assert device.fan_speed == 2
+
+    def test_import_already_registered_409(self, client, session):
+        from app.devices.models import Device, DeviceType, Integration
+        session.add(Device(name="Existing", device_id="ac-unit-1", type=DeviceType.ac, integration=Integration.hon))
+        session.commit()
+        with patch("app.api.devices.hon_client.get_state", new=AsyncMock()) as mock_get:
+            resp = client.post("/devices/hon/ac-unit-1", data={"name": "Dup", "type": "ac"})
+        assert resp.status_code == 409
+        mock_get.assert_not_awaited()
