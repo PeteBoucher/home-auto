@@ -325,6 +325,13 @@
       <i class="bi bi-graph-up"></i> Chart
     </a>
   </div>
+  {% elif device.type.value == "ac" and device.online %}
+  <div class="text-right">
+    <a href="/devices/{{ device.id }}/ac-chart"
+       class="text-xs text-blue-400 hover:text-blue-600 transition-colors">
+      <i class="bi bi-graph-up"></i> Chart
+    </a>
+  </div>
   {% endif %}
 
   {% if device.type.value == "plug" and device.power is not none %}

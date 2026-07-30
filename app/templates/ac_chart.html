@@ -29,10 +29,37 @@
   let chart;
 
   const SERIES = [
-    { key: 'temperature', label: 'Selected', color: '#F59E0B' },
     { key: 'indoor_temp', label: 'Indoor', color: '#3B82F6' },
     { key: 'outdoor_temp', label: 'Outdoor', color: '#10B981' },
   ];
+
+  const sunLinesPlugin = {
+    id: 'sunLines',
+    afterDraw(c) {
+      const events = c.$sunEvents;
+      if (!events || !events.length) return;
+      const { ctx, chartArea, scales } = c;
+      ctx.save();
+      events.forEach(ev => {
+        const x = scales.x.getPixelForValue(ev.time.getTime());
+        if (x < chartArea.left || x > chartArea.right) return;
+        ctx.strokeStyle = ev.type === 'sunrise' ? '#FBBF24' : '#F97316';
+        ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = ev.type === 'sunrise' ? '#B45309' : '#C2410C';
+        ctx.font = '10px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(ev.type === 'sunrise' ? 'sunrise' : 'sunset', x, chartArea.top + 10);
+      });
+      ctx.restore();
+    },
+  };
+  Chart.register(sunLinesPlugin);
 
   async function loadChart(hours) {
     [1, 6, 24, 168].forEach(h => {
@@ -61,13 +88,26 @@
       .map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }))
       .filter(p => p.y !== null && p.y !== undefined);
 
+    // "Selected" is the unit's target temp — meaningless while the AC is off,
+    // so drop points sampled during off periods instead of drawing a flat
+    // line at whatever stale setpoint happened to be cached. Points from
+    // before ac_state was tracked (null) are kept rather than hidden.
+    const selectedPts = data.timestamps
+      .map((t, i) => ({ x: new Date(t + 'Z'), y: data.temperature[i], on: data.ac_state[i] }))
+      .filter(p => p.y !== null && p.y !== undefined && p.on !== false);
+
+    const datasets = [
+      { label: 'Selected', color: '#F59E0B', data: selectedPts },
+      ...SERIES.map(({ key, label, color }) => ({ label, color, data: pts(key) })),
+    ];
+
     if (chart) chart.destroy();
     chart = new Chart(canvas, {
       type: 'line',
       data: {
-        datasets: SERIES.map(({ key, label, color }) => ({
+        datasets: datasets.map(({ label, color, data }) => ({
           label,
-          data: pts(key),
+          data,
           borderColor: color,
           backgroundColor: color + '18',
           borderWidth: 1.5,
@@ -100,6 +140,11 @@
         },
       },
     });
+
+    chart.$sunEvents = hours === 168
+      ? []
+      : (data.sun_events || []).map(e => ({ type: e.type, time: new Date(e.time) }));
+    chart.update('none');
   }
 
   loadChart(6);

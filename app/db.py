@@ -38,6 +38,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN louvre_position INTEGER",
             "ALTER TABLE device ADD COLUMN indoor_temp REAL",
             "ALTER TABLE device ADD COLUMN outdoor_temp REAL",
+            "ALTER TABLE acsample ADD COLUMN ac_state INTEGER",
         ]:
             try:
                 conn.execute(text(stmt))

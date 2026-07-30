@@ -578,6 +578,20 @@ class TestAcChart:
         resp = client.get(f"/devices/{z2m_plug.id}/ac-chart")
         assert resp.status_code == 404
 
+    def test_chart_link_shown_when_off_but_online(self, client, hon_device, session):
+        hon_device.state = False
+        session.add(hon_device)
+        session.commit()
+        resp = client.get("/")
+        assert f"/devices/{hon_device.id}/ac-chart" in resp.text
+
+    def test_chart_link_hidden_when_offline(self, client, hon_device, session):
+        hon_device.online = False
+        session.add(hon_device)
+        session.commit()
+        resp = client.get("/")
+        assert f"/devices/{hon_device.id}/ac-chart" not in resp.text
+
     def test_data_empty(self, client, hon_device):
         resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
         assert resp.status_code == 200
@@ -586,13 +600,14 @@ class TestAcChart:
         assert data["temperature"] == []
         assert data["indoor_temp"] == []
         assert data["outdoor_temp"] == []
+        assert data["ac_state"] == []
 
     def test_data_returns_samples(self, client, hon_device, session):
         from datetime import datetime
         from app.devices.models import AcSample
         session.add(AcSample(
             device_id=hon_device.id, temperature=22, indoor_temp=24.5, outdoor_temp=31.0,
-            timestamp=datetime.utcnow(),
+            ac_state=False, timestamp=datetime.utcnow(),
         ))
         session.commit()
         resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
@@ -601,6 +616,24 @@ class TestAcChart:
         assert data["temperature"][0] == 22
         assert data["indoor_temp"][0] == 24.5
         assert data["outdoor_temp"][0] == 31.0
+        assert data["ac_state"][0] is False
+
+    def test_data_sun_events_empty_without_lat_lon(self, client, hon_device, monkeypatch):
+        monkeypatch.delenv("LAT", raising=False)
+        monkeypatch.delenv("LON", raising=False)
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
+        assert resp.json()["sun_events"] == []
+
+    def test_data_sun_events_present_with_lat_lon(self, client, hon_device, monkeypatch):
+        from datetime import datetime
+        monkeypatch.setenv("LAT", "36.44")
+        monkeypatch.setenv("LON", "-5.27")
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/data?hours=24")
+        events = resp.json()["sun_events"]
+        assert len(events) == (24 // 24 + 2) * 2
+        assert {e["type"] for e in events} == {"sunrise", "sunset"}
+        for e in events:
+            datetime.fromisoformat(e["time"])  # parseable
 
 
 class TestAutomationWithinTrigger:

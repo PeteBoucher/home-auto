@@ -53,6 +53,7 @@ async def poll_hon_devices() -> None:
                 temperature=db_device.temperature,
                 indoor_temp=db_device.indoor_temp,
                 outdoor_temp=db_device.outdoor_temp,
+                ac_state=db_device.state,
             ))
             reachable.append((device, state))
         session.commit()

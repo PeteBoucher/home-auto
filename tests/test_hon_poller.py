@@ -57,6 +57,7 @@ class TestPollHonDevices:
         assert samples[0].temperature == 22
         assert samples[0].indoor_temp == 24.5
         assert samples[0].outdoor_temp == 31.0
+        assert samples[0].ac_state is True
 
     def test_unreachable_device_only_marks_offline(self, engine, session, hon_device):
         hon_device.online = True

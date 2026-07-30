@@ -152,6 +152,7 @@ class AcSample(SQLModel, table=True):
     temperature: Optional[int] = None      # selected/target °C
     indoor_temp: Optional[float] = None    # measured room °C
     outdoor_temp: Optional[float] = None   # measured outdoor °C
+    ac_state: Optional[bool] = None        # was the unit on at sample time
 
 
 class EnergyDailySummary(SQLModel, table=True):

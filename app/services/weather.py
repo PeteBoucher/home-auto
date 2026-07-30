@@ -26,15 +26,19 @@ async def is_raining(lat: float, lon: float) -> bool:
     return code in _RAIN_CODES
 
 
-def _offline_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:
-    """Pure astronomical calculation, no network required — used when
-    Open-Meteo is unreachable so sun-triggered automations survive internet
-    outages."""
+def sun_times_for_date(lat: float, lon: float, day: date) -> tuple[datetime, datetime]:
+    """Pure astronomical calculation, no network required, for an arbitrary date."""
     observer = LocationInfo(latitude=lat, longitude=lon).observer
-    s = astral_sun(observer, date=date.today())
+    s = astral_sun(observer, date=day)
     sunrise = s["sunrise"].astimezone().replace(tzinfo=None)
     sunset = s["sunset"].astimezone().replace(tzinfo=None)
     return sunrise, sunset
+
+
+def _offline_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:
+    """Used when Open-Meteo is unreachable so sun-triggered automations
+    survive internet outages."""
+    return sun_times_for_date(lat, lon, date.today())
 
 
 async def get_sun_times(lat: float, lon: float) -> tuple[datetime, datetime]:

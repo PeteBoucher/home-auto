@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from app.devices import firetv as firetv_client
 from app.services.device_commands import apply_device_command
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
+from app.services.weather import sun_times_for_date
 from app.templating import templates
 
 _DEVICES_JSON = Path("devices.json")
@@ -527,11 +529,27 @@ async def ac_chart_data(device_id: int, session: SessionDep, hours: int = Query(
         .where(AcSample.device_id == device_id, AcSample.timestamp >= cutoff)
         .order_by(AcSample.timestamp)
     ).all()
+
+    sun_events = []
+    lat_str, lon_str = os.getenv("LAT"), os.getenv("LON")
+    if lat_str and lon_str:
+        lat, lon = float(lat_str), float(lon_str)
+        for days_ago in range(hours // 24 + 2):
+            day = date.today() - timedelta(days=days_ago)
+            try:
+                sunrise, sunset = sun_times_for_date(lat, lon, day)
+                sun_events.append({"type": "sunrise", "time": sunrise.isoformat()})
+                sun_events.append({"type": "sunset", "time": sunset.isoformat()})
+            except Exception:
+                pass
+
     return {
         "timestamps": [s.timestamp.isoformat() for s in samples],
         "temperature": [s.temperature for s in samples],
         "indoor_temp": [s.indoor_temp for s in samples],
         "outdoor_temp": [s.outdoor_temp for s in samples],
+        "ac_state": [s.ac_state for s in samples],
+        "sun_events": sun_events,
     }
 
 
