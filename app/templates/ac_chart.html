@@ -88,16 +88,21 @@
       .map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }))
       .filter(p => p.y !== null && p.y !== undefined);
 
-    // "Selected" is the unit's target temp — meaningless while the AC is off,
-    // so drop points sampled during off periods instead of drawing a flat
-    // line at whatever stale setpoint happened to be cached. Points from
-    // before ac_state was tracked (null) are kept rather than hidden.
+    // "Selected" is the unit's target temp — meaningless while the AC is off.
+    // Nulling those points (rather than dropping them) keeps their timestamp
+    // slot in the series so spanGaps:false actually breaks the line there;
+    // simply omitting the points left Chart.js free to draw a straight line
+    // connecting the two nearest surviving points across the whole off
+    // period. Points from before ac_state was tracked (null) are kept as-is.
     const selectedPts = data.timestamps
-      .map((t, i) => ({ x: new Date(t + 'Z'), y: data.temperature[i], on: data.ac_state[i] }))
-      .filter(p => p.y !== null && p.y !== undefined && p.on !== false);
+      .map((t, i) => {
+        const val = data.temperature[i];
+        const off = data.ac_state[i] === false;
+        return { x: new Date(t + 'Z'), y: (val === null || val === undefined || off) ? null : val };
+      });
 
     const datasets = [
-      { label: 'Selected', color: '#F59E0B', data: selectedPts },
+      { label: 'Selected', color: '#F59E0B', data: selectedPts, spanGaps: false },
       ...SERIES.map(({ key, label, color }) => ({ label, color, data: pts(key) })),
     ];
 
@@ -105,9 +110,10 @@
     chart = new Chart(canvas, {
       type: 'line',
       data: {
-        datasets: datasets.map(({ label, color, data }) => ({
+        datasets: datasets.map(({ label, color, data, spanGaps }) => ({
           label,
           data,
+          spanGaps,
           borderColor: color,
           backgroundColor: color + '18',
           borderWidth: 1.5,
