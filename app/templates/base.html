@@ -25,6 +25,20 @@
       transform-origin: 6px 7px;
       animation: hon-louvre-swing 1.6s ease-in-out infinite;
     }
+    /* htmx adds .htmx-request to the element that triggered a request for as
+       long as it's in flight — some integrations (hOn cloud in particular)
+       take several seconds to confirm, so give any control visible pending
+       feedback instead of sitting inert until the swap lands. */
+    @keyframes htmx-pulse {
+      0%, 100% { opacity: 0.55; }
+      50% { opacity: 0.9; }
+    }
+    .htmx-request {
+      opacity: 0.55;
+      cursor: wait !important;
+      pointer-events: none;
+      animation: htmx-pulse 0.9s ease-in-out infinite;
+    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
