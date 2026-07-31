@@ -131,10 +131,9 @@
         scales: {
           x: {
             type: 'time',
-            time: {
-              tooltipFormat: 'dd MMM HH:mm',
-              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' },
-            },
+            time: hours === 168
+              ? { unit: 'day', tooltipFormat: 'EEE dd MMM', displayFormats: { day: 'EEE' } }
+              : { tooltipFormat: 'dd MMM HH:mm', displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' } },
             grid: { color: '#F3F4F6' },
             ticks: { color: '#9CA3AF', font: { size: 11 } },
           },

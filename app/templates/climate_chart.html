@@ -44,7 +44,7 @@
     },
   ];
 
-  function makeChart(canvasId, label, color, unit, yAxis, points) {
+  function makeChart(canvasId, label, color, unit, yAxis, points, hours) {
     return new Chart(document.getElementById(canvasId), {
       type: 'line',
       data: {
@@ -66,10 +66,13 @@
         scales: {
           x: {
             type: 'time',
-            time: {
-              tooltipFormat: 'dd MMM HH:mm',
-              displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' },
-            },
+            // Chart.js auto-picks the tick unit from the actual data span, not
+            // the requested window — a device with less than 7 days of history
+            // would otherwise get hour-of-day ticks on the 7d view instead of
+            // one tick per day. Force day-of-week ticks whenever 7d is selected.
+            time: hours === 168
+              ? { unit: 'day', tooltipFormat: 'EEE dd MMM', displayFormats: { day: 'EEE' } }
+              : { tooltipFormat: 'dd MMM HH:mm', displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' } },
             grid: { color: '#F3F4F6' },
             ticks: { color: '#9CA3AF', font: { size: 11 } },
           },
@@ -115,7 +118,7 @@
 
     SERIES.forEach(({ id, key, label, color, unit, yAxis }) => {
       if (charts[id]) charts[id].destroy();
-      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key));
+      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key), hours);
     });
   }
 
