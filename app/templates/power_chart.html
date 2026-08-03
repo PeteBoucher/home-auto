@@ -124,9 +124,25 @@
 
     const pts = (key, scale = 1) => data.timestamps.map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] * scale }));
 
+    // Raw sensor samples get dense and jittery over longer views. Smooth with
+    // a centered moving average whose window scales with how many points are
+    // actually on screen, so 1h stays near-raw while 7d gets meaningfully
+    // smoothed.
+    function smooth(points) {
+      const windowSize = Math.max(3, Math.round(points.length / 60));
+      const half = Math.floor(windowSize / 2);
+      return points.map((p, i) => {
+        const start = Math.max(0, i - half);
+        const end = Math.min(points.length - 1, i + half);
+        let sum = 0;
+        for (let j = start; j <= end; j++) sum += points[j].y;
+        return { x: p.x, y: sum / (end - start + 1) };
+      });
+    }
+
     SERIES.forEach(({ id, key, label, color, unit, yAxis, scale = 1 }) => {
       if (charts[id]) charts[id].destroy();
-      charts[id] = makeChart(id, label, color, unit, yAxis, pts(key, scale), hours);
+      charts[id] = makeChart(id, label, color, unit, yAxis, smooth(pts(key, scale)), hours);
     });
   }
 
