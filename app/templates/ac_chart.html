@@ -88,6 +88,22 @@
       .map((t, i) => ({ x: new Date(t + 'Z'), y: data[key][i] }))
       .filter(p => p.y !== null && p.y !== undefined);
 
+    // Indoor/outdoor are raw 60s sensor samples, so longer views get dense
+    // and jittery. Smooth with a centered moving average whose window scales
+    // with how many points are actually on screen, so 1h stays near-raw
+    // while 7d (thousands of points) gets meaningfully smoothed.
+    function smooth(points) {
+      const windowSize = Math.max(3, Math.round(points.length / 60));
+      const half = Math.floor(windowSize / 2);
+      return points.map((p, i) => {
+        const start = Math.max(0, i - half);
+        const end = Math.min(points.length - 1, i + half);
+        let sum = 0;
+        for (let j = start; j <= end; j++) sum += points[j].y;
+        return { x: p.x, y: sum / (end - start + 1) };
+      });
+    }
+
     // "Selected" is the unit's target temp — meaningless while the AC is off.
     // Nulling those points (rather than dropping them) keeps their timestamp
     // slot in the series so spanGaps:false actually breaks the line there;
@@ -103,7 +119,7 @@
 
     const datasets = [
       { label: 'Selected', color: '#F59E0B', data: selectedPts, spanGaps: false },
-      ...SERIES.map(({ key, label, color }) => ({ label, color, data: pts(key) })),
+      ...SERIES.map(({ key, label, color }) => ({ label, color, data: smooth(pts(key)) })),
     ];
 
     if (chart) chart.destroy();
