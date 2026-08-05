@@ -1,10 +1,25 @@
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlmodel import Session, SQLModel, create_engine
 
+
+def _configure_sqlite(dbapi_connection, connection_record) -> None:
+    """WAL lets readers and a writer work concurrently instead of SQLite's
+    default hard single-writer lock, and busy_timeout makes a write that does
+    collide retry internally for a few seconds instead of raising
+    'database is locked' immediately — both needed since background tasks
+    (MQTT listener, pollers) and HTTP request handlers write to the same
+    file concurrently."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.close()
+
+
 engine = create_engine("sqlite:///home_auto.db")
+event.listen(engine, "connect", _configure_sqlite)
 
 
 def init_db() -> None:

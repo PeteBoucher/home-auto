@@ -284,6 +284,58 @@ class TestBuildSetPayload:
         assert build_set_payload({}) == {}
 
 
+class _FakeMessage:
+    def __init__(self, topic, payload):
+        self.topic = topic
+        self.payload = payload
+
+
+class _FakeClient:
+    def __init__(self, messages):
+        self._messages = messages
+
+    @property
+    def messages(self):
+        async def gen():
+            for m in self._messages:
+                yield m
+        return gen()
+
+
+class TestListenResilience:
+    def test_error_handling_one_message_does_not_stop_the_listener(self):
+        # A DB write colliding with another writer (e.g. "database is locked")
+        # inside propagate_member_change must not kill the whole listener —
+        # previously it propagated out of _listen(), crashing the MQTT
+        # connection and losing whatever arrived during the reconnect.
+        msg1 = _FakeMessage("zigbee2mqtt/device_a", b'{"state": "ON"}')
+        msg2 = _FakeMessage("zigbee2mqtt/device_b", b'{"state": "OFF"}')
+        client = _FakeClient([msg1, msg2])
+
+        with patch("app.devices.mqtt._apply_state", side_effect=[(1, {"state": True}), (2, {"state": False})]), \
+             patch("app.services.automation_engine.check_state_triggers", new=AsyncMock()) as mock_triggers, \
+             patch(
+                 "app.services.groups.propagate_member_change",
+                 new=AsyncMock(side_effect=[RuntimeError("database is locked"), None]),
+             ) as mock_propagate:
+            asyncio.run(mqtt_module._listen(client))
+
+        assert mock_propagate.await_count == 2
+        assert mock_triggers.await_count == 2
+
+    def test_bad_json_still_skips_without_stopping(self):
+        msg1 = _FakeMessage("zigbee2mqtt/device_a", b'not json')
+        msg2 = _FakeMessage("zigbee2mqtt/device_b", b'{"state": "OFF"}')
+        client = _FakeClient([msg1, msg2])
+
+        with patch("app.devices.mqtt._apply_state", return_value=(2, {"state": False})), \
+             patch("app.services.automation_engine.check_state_triggers", new=AsyncMock()), \
+             patch("app.services.groups.propagate_member_change", new=AsyncMock()) as mock_propagate:
+            asyncio.run(mqtt_module._listen(client))
+
+        mock_propagate.assert_awaited_once_with(2)
+
+
 class TestZigbeeGroupManagement:
     def test_create_zigbee_group(self):
         with patch("app.devices.mqtt.publish", new=AsyncMock()) as mock_pub:

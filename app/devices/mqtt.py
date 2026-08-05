@@ -140,19 +140,27 @@ async def _listen(client: aiomqtt.Client) -> None:
             payload = json.loads(message.payload)
         except (json.JSONDecodeError, ValueError):
             continue
-        parts = topic.split("/")
-        if len(parts) < 2 or parts[0] != PREFIX or parts[1] == "bridge":
-            continue
-        friendly_name = parts[1]
-        if len(parts) == 3 and parts[2] == "availability":
-            result = _apply_state(friendly_name, {}, online=payload.get("state") == "online")
-        elif len(parts) == 2:
-            result = _apply_state(friendly_name, payload)
-        else:
-            continue
-        if result:
-            await check_state_triggers(*result)
-            await propagate_member_change(result[0])
+        try:
+            parts = topic.split("/")
+            if len(parts) < 2 or parts[0] != PREFIX or parts[1] == "bridge":
+                continue
+            friendly_name = parts[1]
+            if len(parts) == 3 and parts[2] == "availability":
+                result = _apply_state(friendly_name, {}, online=payload.get("state") == "online")
+            elif len(parts) == 2:
+                result = _apply_state(friendly_name, payload)
+            else:
+                continue
+            if result:
+                await check_state_triggers(*result)
+                await propagate_member_change(result[0])
+        except Exception:
+            # A single bad message (e.g. a DB write colliding with another writer)
+            # must not tear down the whole listener — that drops the MQTT session
+            # and every message in flight during the ~5s reconnect, which is how a
+            # transient "database is locked" turned into a group member visibly
+            # desyncing (see .claude/memory/project.md "Known Gotchas").
+            log.error("Error handling MQTT message on %s, continuing", topic, exc_info=True)
 
 
 def _seed_from_z2m_cache() -> None:
