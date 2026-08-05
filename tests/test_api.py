@@ -37,11 +37,11 @@ class TestDashboard:
 
     def test_climate_widget_hidden_without_climate_devices(self, client, tuya_bulb):
         resp = client.get("/")
-        assert "climate-widget-temp-chart" not in resp.text
+        assert "climate-widget-chart" not in resp.text
 
     def test_climate_widget_shown_with_sensor(self, client, z2m_sensor):
         resp = client.get("/")
-        assert "climate-widget-temp-chart" in resp.text
+        assert "climate-widget-chart" in resp.text
 
 
 class TestTuyaCommands:
