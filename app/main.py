@@ -14,7 +14,7 @@ from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from app.db import SessionDep, engine, init_db
-from app.devices.models import Device, DeviceGroup, PowerSample, Schedule
+from app.devices.models import Device, DeviceGroup, DeviceType, PowerSample, Schedule
 from app.templating import templates
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -25,6 +25,7 @@ from app.api import automations as automations_router
 from app.api import history as history_router
 from app.api import network as network_router
 from app.api import groups as groups_router
+from app.api import climate as climate_router
 from app.services.automations import check_weather
 from app.services.scheduler import scheduler, init_schedules
 from app.services.automation_engine import load_time_automations, refresh_sun_jobs
@@ -71,6 +72,7 @@ app.include_router(automations_router.router)
 app.include_router(history_router.router)
 app.include_router(network_router.router)
 app.include_router(groups_router.router)
+app.include_router(climate_router.router)
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, session: SessionDep):
@@ -81,10 +83,12 @@ async def dashboard(request: Request, session: SessionDep):
     }
     groups = list(session.exec(select(DeviceGroup)).all())
     members_by_group = {g.id: [d for d in devices if d.group_id == g.id] for g in groups}
+    has_climate_data = any(d.type in (DeviceType.sensor, DeviceType.ac) for d in devices)
     return templates.TemplateResponse(request, "index.html", {
         "devices": devices,
         "schedules": schedules,
         "groups": groups,
         "members_by_group": members_by_group,
+        "has_climate_data": has_climate_data,
         "roachcam_url": os.getenv("ROACHCAM_URL", "").rstrip("/"),
     })

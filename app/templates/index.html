@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% include "partials/climate_widget.html" %}
 {% if not devices %}
 <div class="text-center py-20 text-gray-400">
   <p class="text-lg font-medium">No devices yet.</p>

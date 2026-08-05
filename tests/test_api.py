@@ -35,6 +35,14 @@ class TestDashboard:
         assert "21.5°" in resp.text
         assert "55.2%" in resp.text
 
+    def test_climate_widget_hidden_without_climate_devices(self, client, tuya_bulb):
+        resp = client.get("/")
+        assert "climate-widget-chart" not in resp.text
+
+    def test_climate_widget_shown_with_sensor(self, client, z2m_sensor):
+        resp = client.get("/")
+        assert "climate-widget-chart" in resp.text
+
 
 class TestTuyaCommands:
     def test_toggle_on(self, client, tuya_bulb):
@@ -254,6 +262,95 @@ class TestClimateChart:
         assert len(data["timestamps"]) == 1
         assert data["temperature"][0] == 21.5
         assert data["humidity"][0] == 55.2
+
+
+class TestClimateWidget:
+    def test_empty_returns_empty_dict(self, client):
+        resp = client.get("/climate/data")
+        assert resp.status_code == 200
+        assert resp.json() == {}
+
+    def test_single_room_sensor(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        device = Device(
+            name="Temp/Humidity", room="Living room", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt, online=True,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=21.0, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert list(data.keys()) == ["Living room"]
+        assert data["Living room"]["temperature"] == [21.0]
+
+    def test_multiple_sensors_same_room_averaged(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        now = datetime.utcnow()
+        d1 = Device(name="A", room="Living room", device_id="s1", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        d2 = Device(name="B", room="Living room", device_id="s2", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        session.add(d1)
+        session.add(d2)
+        session.commit()
+        session.refresh(d1)
+        session.refresh(d2)
+        session.add(ClimateSample(device_id=d1.id, temperature=20.0, timestamp=now))
+        session.add(ClimateSample(device_id=d2.id, temperature=24.0, timestamp=now))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert list(data.keys()) == ["Living room"]
+        assert data["Living room"]["temperature"] == [22.0]
+
+    def test_uses_device_name_when_no_room(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        device = Device(name="Unassigned Sensor", device_id="s1", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=19.5, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        assert list(resp.json().keys()) == ["Unassigned Sensor"]
+
+    def test_ac_indoor_outdoor_included(self, client, session):
+        from datetime import datetime
+        from app.devices.models import AcSample, Device, DeviceType, Integration
+        ac = Device(name="Living Room A/C", device_id="ac-1", type=DeviceType.ac, integration=Integration.hon)
+        session.add(ac)
+        session.commit()
+        session.refresh(ac)
+        session.add(AcSample(device_id=ac.id, indoor_temp=23.0, outdoor_temp=31.0, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert data["AC Indoor"]["temperature"] == [23.0]
+        assert data["AC Outdoor"]["temperature"] == [31.0]
+
+    def test_respects_hours_window(self, client, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        device = Device(name="Sensor", room="Attic", device_id="s1", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(
+            device_id=device.id, temperature=15.0,
+            timestamp=datetime.utcnow() - timedelta(hours=10),
+        ))
+        session.commit()
+
+        resp = client.get("/climate/data?hours=6")
+        assert resp.json() == {}
 
 
 class TestPowerChart:
