@@ -37,11 +37,11 @@ class TestDashboard:
 
     def test_climate_widget_hidden_without_climate_devices(self, client, tuya_bulb):
         resp = client.get("/")
-        assert "climate-widget-chart" not in resp.text
+        assert "climate-widget-temp-chart" not in resp.text
 
     def test_climate_widget_shown_with_sensor(self, client, z2m_sensor):
         resp = client.get("/")
-        assert "climate-widget-chart" in resp.text
+        assert "climate-widget-temp-chart" in resp.text
 
 
 class TestTuyaCommands:
@@ -351,6 +351,53 @@ class TestClimateWidget:
 
         resp = client.get("/climate/data?hours=6")
         assert resp.json() == {}
+
+    def test_humidity_included_alongside_temperature(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        device = Device(name="Temp/Humidity", room="Living room", device_id="s1", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=21.0, humidity=48.5, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert data["Living room"]["humidity"] == [48.5]
+
+    def test_humidity_averaged_across_room(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        now = datetime.utcnow()
+        d1 = Device(name="A", room="Living room", device_id="s1", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        d2 = Device(name="B", room="Living room", device_id="s2", type=DeviceType.sensor, integration=Integration.zigbee2mqtt)
+        session.add(d1)
+        session.add(d2)
+        session.commit()
+        session.refresh(d1)
+        session.refresh(d2)
+        session.add(ClimateSample(device_id=d1.id, temperature=20.0, humidity=40.0, timestamp=now))
+        session.add(ClimateSample(device_id=d2.id, temperature=24.0, humidity=60.0, timestamp=now))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        assert resp.json()["Living room"]["humidity"] == [50.0]
+
+    def test_ac_humidity_is_null(self, client, session):
+        from datetime import datetime
+        from app.devices.models import AcSample, Device, DeviceType, Integration
+        ac = Device(name="Living Room A/C", device_id="ac-1", type=DeviceType.ac, integration=Integration.hon)
+        session.add(ac)
+        session.commit()
+        session.refresh(ac)
+        session.add(AcSample(device_id=ac.id, indoor_temp=23.0, outdoor_temp=31.0, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert data["AC Indoor"]["humidity"] == [None]
+        assert data["AC Outdoor"]["humidity"] == [None]
 
 
 class TestPowerChart:

@@ -16,19 +16,22 @@ def _bucket_start(ts: datetime, bucket_seconds: int, epoch: datetime) -> datetim
 
 @router.get("/data")
 async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, le=168)):
-    """Temperature series for every climate sensor's room, plus the A/C's own
-    indoor/outdoor readings, bucketed and averaged so multiple sensors sharing
-    a room collapse into one line per room instead of overlapping raw noise."""
+    """Temperature + humidity series for every climate sensor's room, plus the
+    A/C's own indoor/outdoor temperature, bucketed and averaged so multiple
+    sensors sharing a room collapse into one line per room instead of
+    overlapping raw noise. The A/C doesn't report humidity, so its series
+    just carry nulls there."""
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     bucket_seconds = max(60, hours * 3600 // 150)
 
-    buckets: dict[str, dict[datetime, list[float]]] = {}
+    # buckets[label][bucket_time][metric] -> list of readings to average
+    buckets: dict[str, dict[datetime, dict[str, list[float]]]] = {}
 
-    def _add(label: str, ts: datetime, value: float | None) -> None:
+    def _add(label: str, ts: datetime, metric: str, value: float | None) -> None:
         if value is None:
             return
         bucket = _bucket_start(ts, bucket_seconds, cutoff)
-        buckets.setdefault(label, {}).setdefault(bucket, []).append(value)
+        buckets.setdefault(label, {}).setdefault(bucket, {}).setdefault(metric, []).append(value)
 
     sensors = session.exec(select(Device).where(Device.type == DeviceType.sensor)).all()
     room_by_id = {d.id: (d.room or d.name) for d in sensors}
@@ -40,7 +43,9 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             )
         ).all()
         for s in samples:
-            _add(room_by_id[s.device_id], s.timestamp, s.temperature)
+            room = room_by_id[s.device_id]
+            _add(room, s.timestamp, "temperature", s.temperature)
+            _add(room, s.timestamp, "humidity", s.humidity)
 
     ac_ids = [d.id for d in session.exec(select(Device).where(Device.type == DeviceType.ac)).all()]
     if ac_ids:
@@ -48,13 +53,21 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             select(AcSample).where(AcSample.device_id.in_(ac_ids), AcSample.timestamp >= cutoff)
         ).all()
         for s in ac_samples:
-            _add("AC Indoor", s.timestamp, s.indoor_temp)
-            _add("AC Outdoor", s.timestamp, s.outdoor_temp)
+            _add("AC Indoor", s.timestamp, "temperature", s.indoor_temp)
+            _add("AC Outdoor", s.timestamp, "temperature", s.outdoor_temp)
 
-    return {
-        label: {
-            "timestamps": [b.isoformat() for b in sorted(points)],
-            "temperature": [round(sum(points[b]) / len(points[b]), 2) for b in sorted(points)],
+    def _series(points: dict[datetime, dict[str, list[float]]], metric: str, order: list[datetime]) -> list[float | None]:
+        return [
+            round(sum(points[b][metric]) / len(points[b][metric]), 2) if metric in points[b] else None
+            for b in order
+        ]
+
+    result = {}
+    for label, points in buckets.items():
+        order = sorted(points)
+        result[label] = {
+            "timestamps": [b.isoformat() for b in order],
+            "temperature": _series(points, "temperature", order),
+            "humidity": _series(points, "humidity", order),
         }
-        for label, points in buckets.items()
-    }
+    return result

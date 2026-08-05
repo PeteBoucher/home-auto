@@ -1,7 +1,7 @@
 {% if has_climate_data %}
 <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
   <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-    <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Climate — Temperature (°C)</p>
+    <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Climate</p>
     <div class="flex gap-2">
       {% for h, label in [(1, "1h"), (6, "6h"), (24, "24h"), (168, "7d")] %}
       <button onclick="loadClimateWidget({{ h }})" id="climate-btn-{{ h }}"
@@ -11,14 +11,62 @@
       {% endfor %}
     </div>
   </div>
-  <canvas id="climate-widget-chart"></canvas>
+  <p class="text-xs text-gray-400 font-medium mb-2">Temperature (°C)</p>
+  <canvas id="climate-widget-temp-chart" class="mb-5"></canvas>
+  <p class="text-xs text-gray-400 font-medium mb-2">Humidity (%)</p>
+  <canvas id="climate-widget-humidity-chart"></canvas>
 </div>
 
 <script src="/static/chart.umd.min.js"></script>
 <script src="/static/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
-  let climateWidgetChart;
+  let climateWidgetTempChart, climateWidgetHumidityChart;
   const CLIMATE_WIDGET_COLORS = ['#3B82F6', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16'];
+
+  function climateWidgetTimeScale(hours) {
+    return {
+      type: 'time',
+      // Chart.js auto-picks the tick unit from the actual data span, not the
+      // requested window — force day-of-week ticks on the 7d view so it
+      // doesn't fall back to confusing hour-of-day ticks when less than 7
+      // days of history has accumulated yet.
+      time: hours === 168
+        ? { unit: 'day', tooltipFormat: 'EEE dd MMM', displayFormats: { day: 'EEE' } }
+        : { tooltipFormat: 'dd MMM HH:mm', displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' } },
+      grid: { color: '#F3F4F6' },
+      ticks: { color: '#9CA3AF', font: { size: 11 } },
+    };
+  }
+
+  function climateWidgetEmptyState(canvas, text) {
+    const ctx = canvas.getContext('2d');
+    canvas.height = 60;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#9CA3AF';
+    ctx.font = '13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, canvas.width / 2, 36);
+  }
+
+  // labels/colors are shared across both charts (by position in `labels`) so
+  // a room keeps the same colour between its temperature and humidity lines.
+  function climateWidgetDatasets(data, labels, metric) {
+    return labels
+      .filter(label => data[label][metric].some(v => v !== null))
+      .map(label => {
+        const color = CLIMATE_WIDGET_COLORS[labels.indexOf(label) % CLIMATE_WIDGET_COLORS.length];
+        return {
+          label,
+          data: data[label].timestamps.map((t, j) => ({ x: new Date(t + 'Z'), y: data[label][metric][j] })),
+          borderColor: color,
+          backgroundColor: color + '18',
+          borderWidth: 1.5,
+          tension: 0.3,
+          pointRadius: 0,
+          fill: false,
+        };
+      });
+  }
 
   async function loadClimateWidget(hours) {
     [1, 6, 24, 168].forEach(h => {
@@ -32,58 +80,52 @@
     const data = await resp.json();
     const labels = Object.keys(data);
 
-    const canvas = document.getElementById('climate-widget-chart');
+    const tempCanvas = document.getElementById('climate-widget-temp-chart');
+    const humidityCanvas = document.getElementById('climate-widget-humidity-chart');
+
+    if (climateWidgetTempChart) climateWidgetTempChart.destroy();
+    if (climateWidgetHumidityChart) climateWidgetHumidityChart.destroy();
+
     if (labels.length === 0) {
-      const ctx = canvas.getContext('2d');
-      canvas.height = 60;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#9CA3AF';
-      ctx.font = '13px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('No data for this period', canvas.width / 2, 36);
+      climateWidgetEmptyState(tempCanvas, 'No data for this period');
+      climateWidgetEmptyState(humidityCanvas, 'No data for this period');
       return;
     }
 
-    const datasets = labels.map((label, i) => {
-      const series = data[label];
-      const color = CLIMATE_WIDGET_COLORS[i % CLIMATE_WIDGET_COLORS.length];
-      return {
-        label,
-        data: series.timestamps.map((t, j) => ({ x: new Date(t + 'Z'), y: series.temperature[j] })),
-        borderColor: color,
-        backgroundColor: color + '18',
-        borderWidth: 1.5,
-        tension: 0.3,
-        pointRadius: 0,
-        fill: false,
-      };
-    });
-
-    if (climateWidgetChart) climateWidgetChart.destroy();
-    climateWidgetChart = new Chart(canvas, {
+    climateWidgetTempChart = new Chart(tempCanvas, {
       type: 'line',
-      data: { datasets },
+      data: { datasets: climateWidgetDatasets(data, labels, 'temperature') },
       options: {
         responsive: true,
         animation: false,
-        plugins: {
-          legend: { display: true, position: 'top', labels: { color: '#6B7280', font: { size: 12 } } },
-        },
+        plugins: { legend: { display: true, position: 'top', labels: { color: '#6B7280', font: { size: 12 } } } },
         scales: {
-          x: {
-            type: 'time',
-            // Chart.js auto-picks the tick unit from the actual data span, not
-            // the requested window — force day-of-week ticks on the 7d view so
-            // it doesn't fall back to confusing hour-of-day ticks when less
-            // than 7 days of history has accumulated yet.
-            time: hours === 168
-              ? { unit: 'day', tooltipFormat: 'EEE dd MMM', displayFormats: { day: 'EEE' } }
-              : { tooltipFormat: 'dd MMM HH:mm', displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'dd MMM' } },
+          x: climateWidgetTimeScale(hours),
+          y: {
+            title: { display: true, text: '°C', color: '#9CA3AF', font: { size: 11 } },
             grid: { color: '#F3F4F6' },
             ticks: { color: '#9CA3AF', font: { size: 11 } },
           },
+        },
+      },
+    });
+
+    const humidityDatasets = climateWidgetDatasets(data, labels, 'humidity');
+    if (humidityDatasets.length === 0) {
+      climateWidgetEmptyState(humidityCanvas, 'No humidity data for this period');
+      return;
+    }
+    climateWidgetHumidityChart = new Chart(humidityCanvas, {
+      type: 'line',
+      data: { datasets: humidityDatasets },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: { legend: { display: true, position: 'top', labels: { color: '#6B7280', font: { size: 12 } } } },
+        scales: {
+          x: climateWidgetTimeScale(hours),
           y: {
-            title: { display: true, text: '°C', color: '#9CA3AF', font: { size: 11 } },
+            title: { display: true, text: '%', color: '#9CA3AF', font: { size: 11 } },
             grid: { color: '#F3F4F6' },
             ticks: { color: '#9CA3AF', font: { size: 11 } },
           },
