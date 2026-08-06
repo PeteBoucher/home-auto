@@ -19,7 +19,19 @@
 <script>
   let climateWidgetChart;
   let climateWidgetHours = 6;
-  const CLIMATE_WIDGET_COLORS = ['#3B82F6', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16'];
+
+  // Yellow is reserved for "Selected" on the per-device A/C chart, so it's
+  // deliberately excluded here. AC Indoor/Outdoor are pinned to match their
+  // colours on that same page; room sensors get their own separate palette
+  // so they never collide with the AC's fixed colours either.
+  const CLIMATE_WIDGET_AC_COLORS = { 'AC Indoor': '#3B82F6', 'AC Outdoor': '#10B981' };
+  const CLIMATE_WIDGET_ROOM_COLORS = ['#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16', '#F97316', '#14B8A6', '#A855F7'];
+
+  function climateWidgetColor(label, labels) {
+    if (CLIMATE_WIDGET_AC_COLORS[label]) return CLIMATE_WIDGET_AC_COLORS[label];
+    const roomLabels = labels.filter(l => !CLIMATE_WIDGET_AC_COLORS[l]);
+    return CLIMATE_WIDGET_ROOM_COLORS[roomLabels.indexOf(label) % CLIMATE_WIDGET_ROOM_COLORS.length];
+  }
 
   function climateWidgetEmptyState(canvas, text) {
     const ctx = canvas.getContext('2d');
@@ -38,7 +50,7 @@
   function climateWidgetDatasets(data, labels) {
     const datasets = [];
     labels.forEach(label => {
-      const color = CLIMATE_WIDGET_COLORS[labels.indexOf(label) % CLIMATE_WIDGET_COLORS.length];
+      const color = climateWidgetColor(label, labels);
       const series = data[label];
       const points = metric => series.timestamps.map((t, j) => ({ x: new Date(t + 'Z'), y: series[metric][j] }));
       if (series.temperature.some(v => v !== null)) {
