@@ -18,6 +18,7 @@
 <script src="/static/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
   let climateWidgetChart;
+  let climateWidgetHours = 6;
   const CLIMATE_WIDGET_COLORS = ['#3B82F6', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#84CC16'];
 
   function climateWidgetEmptyState(canvas, text) {
@@ -70,6 +71,7 @@
   }
 
   async function loadClimateWidget(hours) {
+    climateWidgetHours = hours;
     [1, 6, 24, 168].forEach(h => {
       const btn = document.getElementById('climate-btn-' + h);
       btn.className = h === hours
@@ -131,5 +133,8 @@
   }
 
   loadClimateWidget(6);
+  // Match the device grid's own refresh cadence (index.html hx-trigger="every 30s")
+  // so the chart doesn't visibly lag behind the rest of the dashboard.
+  setInterval(() => loadClimateWidget(climateWidgetHours), 30000);
 </script>
 {% endif %}
