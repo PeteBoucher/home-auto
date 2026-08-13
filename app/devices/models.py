@@ -44,7 +44,6 @@ class Device(SQLModel, table=True):
     temperature: Optional[int] = None    # A/C: target °C
     ac_mode: Optional[str] = None        # A/C: auto/cool/heat/dry/fan
     fan_speed: Optional[int] = None      # A/C: device-specific enum — 1=high 2=med 3=low 5=auto (no 0/4)
-    eco: Optional[bool] = None           # A/C: energy saving mode
     quiet: Optional[bool] = None         # A/C: quiet/mute mode
     louvre_position: Optional[int] = None  # A/C: vertical louvre position (device-specific enum, no fixed labels)
     indoor_temp: Optional[float] = None    # A/C: measured room temperature

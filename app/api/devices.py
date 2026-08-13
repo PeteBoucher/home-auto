@@ -146,7 +146,6 @@ async def hon_import_device(uid: str, request: Request, session: SessionDep):
     device.temperature = state.get("temperature")
     device.ac_mode = state.get("ac_mode")
     device.fan_speed = state.get("fan_speed")
-    device.eco = state.get("eco")
     device.quiet = state.get("quiet")
     device.louvre_position = state.get("louvre_position")
     device.indoor_temp = state.get("indoor_temp")
@@ -303,8 +302,6 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
             hon_command["ac_mode"] = str(form["ac_mode"])
         if "fan_speed" in form:
             hon_command["fan_speed"] = int(form["fan_speed"])
-        if "eco" in form:
-            hon_command["eco"] = str(form["eco"]).lower() == "true"
         if "quiet" in form:
             hon_command["quiet"] = str(form["quiet"]).lower() == "true"
         if "louvre_position" in form:
@@ -316,7 +313,6 @@ async def send_command(device_id: int, request: Request, session: SessionDep):
         device.temperature = state.get("temperature")
         device.ac_mode = state.get("ac_mode")
         device.fan_speed = state.get("fan_speed")
-        device.eco = state.get("eco")
         device.quiet = state.get("quiet")
         device.louvre_position = state.get("louvre_position")
         device.indoor_temp = state.get("indoor_temp")

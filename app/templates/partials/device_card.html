@@ -245,23 +245,7 @@
     </select>
   </div>
 
-  {% set eco_available = device.ac_mode == "cool" %}
   <div class="flex gap-2">
-    <button
-      {% if eco_available %}
-      hx-post="/devices/{{ device.id }}/command"
-      hx-vals='{"eco": "{{ "false" if device.eco else "true" }}"}'
-      hx-target="#device-{{ device.id }}"
-      hx-swap="outerHTML"
-      {% else %}
-      disabled
-      title="Eco only works in Cool mode on this unit — it silently reverts off in other modes"
-      {% endif %}
-      class="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1
-        {% if device.eco %}bg-green-100 text-green-700
-        {% elif eco_available %}bg-gray-100 text-gray-500
-        {% else %}bg-gray-50 text-gray-300 cursor-not-allowed{% endif %}"
-    ><i class="bi bi-tree-fill"></i> Eco</button>
     <button
       hx-post="/devices/{{ device.id }}/command"
       hx-vals='{"quiet": "{{ "false" if device.quiet else "true" }}"}'

@@ -78,7 +78,6 @@ async def get_state(device_id: str) -> dict[str, Any]:
             "temperature": int(_pval(params, "tempSel", 22)),
             "ac_mode": _INT_TO_MODE.get(int(_pval(params, "machMode", 1)), "cool"),
             "fan_speed": int(_pval(params, "windSpeed", 0)),
-            "eco": bool(int(_pval(params, "energySavingStatus", 0))),
             "quiet": bool(int(_pval(params, "muteStatus", 0))),
             "louvre_position": int(_pval(params, "windDirectionVertical", 0)),
             "indoor_temp": float(_pval(params, "tempIndoor")) if _pval(params, "tempIndoor") is not None else None,
@@ -110,8 +109,6 @@ async def send_command(device_id: str, command: dict) -> None:
             cmd.parameters["machMode"].value = str(_MODE_TO_INT.get(command["ac_mode"], 1))
         if "fan_speed" in command:
             cmd.parameters["windSpeed"].value = str(command["fan_speed"])
-        if "eco" in command:
-            cmd.parameters["energySavingStatus"].value = 1 if command["eco"] else 0
         if "quiet" in command:
             cmd.parameters["muteStatus"].value = 1 if command["quiet"] else 0
         if "louvre_position" in command:

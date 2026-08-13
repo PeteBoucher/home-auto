@@ -642,22 +642,21 @@ class TestHonCommand:
         session.refresh(device)
         return device
 
-    def test_eco_quiet_and_louvre_pass_through(self, client, hon_device, session):
+    def test_quiet_and_louvre_pass_through(self, client, hon_device, session):
         new_state = {
             "online": True, "state": True, "temperature": 22, "ac_mode": "cool", "fan_speed": 2,
-            "eco": True, "quiet": True, "louvre_position": 8,
+            "quiet": True, "louvre_position": 8,
             "indoor_temp": 24.0, "outdoor_temp": 33.0,
         }
         with patch("app.api.devices.hon_client.send_command", new=AsyncMock()) as mock_send, \
              patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=new_state)):
             resp = client.post(
                 f"/devices/{hon_device.id}/command",
-                data={"eco": "true", "quiet": "true", "louvre_position": "8"},
+                data={"quiet": "true", "louvre_position": "8"},
             )
         assert resp.status_code == 200
-        mock_send.assert_awaited_once_with("ac-unit-1", {"eco": True, "quiet": True, "louvre_position": 8})
+        mock_send.assert_awaited_once_with("ac-unit-1", {"quiet": True, "louvre_position": 8})
         session.refresh(hon_device)
-        assert hon_device.eco is True
         assert hon_device.quiet is True
         assert hon_device.louvre_position == 8
         assert hon_device.indoor_temp == 24.0
@@ -670,7 +669,7 @@ class TestHonImport:
         state = {
             "online": True, "state": True, "temperature": 21,
             "ac_mode": "cool", "fan_speed": 2,
-            "eco": True, "quiet": False, "louvre_position": 5,
+            "quiet": False, "louvre_position": 5,
             "indoor_temp": 23.5, "outdoor_temp": 30.0,
         }
         with patch("app.api.devices.hon_client.get_state", new=AsyncMock(return_value=state)):
@@ -683,7 +682,6 @@ class TestHonImport:
         assert device.temperature == 21
         assert device.ac_mode == "cool"
         assert device.fan_speed == 2
-        assert device.eco is True
         assert device.quiet is False
         assert device.louvre_position == 5
         assert device.indoor_temp == 23.5

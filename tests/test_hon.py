@@ -64,7 +64,6 @@ _FULL_PARAMS = {
     "tempSel": _Param(26.0),
     "machMode": _Param(1),
     "windSpeed": _Param(5),
-    "energySavingStatus": _Param(0),
     "muteStatus": _Param(1),
     "windDirectionVertical": _Param(5),
     "tempIndoor": _Param(27.0),
@@ -82,7 +81,6 @@ class TestGetState:
             "temperature": 26,
             "ac_mode": "cool",
             "fan_speed": 5,
-            "eco": False,
             "quiet": True,
             "louvre_position": 5,
             "indoor_temp": 27.0,
@@ -122,7 +120,6 @@ def _make_start_stop_appliance():
             "tempSel": _Param(26),
             "machMode": _EnumParam("1", ["0", "1", "2", "4", "6"]),
             "windSpeed": _EnumParam("5", ["1", "2", "3", "5"]),
-            "energySavingStatus": _Param("1"),
             "muteStatus": _Param(0),
             "windDirectionVertical": _EnumParam("5", ["2", "4", "5", "6", "8"]),
         })
@@ -156,11 +153,10 @@ class TestSendCommand:
         assert start_cmd.parameters["windDirectionVertical"].value == "8"
         start_cmd.send.assert_awaited_once()
 
-    def test_sets_eco_and_quiet(self):
+    def test_sets_quiet(self):
         appliance, start_cmd, _ = _make_start_stop_appliance()
         _set_appliances(appliance)
-        asyncio.run(hon.send_command("ac-1", {"eco": True, "quiet": False}))
-        assert start_cmd.parameters["energySavingStatus"].value == 1
+        asyncio.run(hon.send_command("ac-1", {"quiet": False}))
         assert start_cmd.parameters["muteStatus"].value == 0
 
     def test_turning_off_uses_stop_program(self):
@@ -186,4 +182,4 @@ class TestSendCommand:
 
     def test_unknown_appliance_is_a_noop(self):
         _set_appliances()
-        asyncio.run(hon.send_command("missing", {"eco": True}))  # should not raise
+        asyncio.run(hon.send_command("missing", {"quiet": True}))  # should not raise

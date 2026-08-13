@@ -42,7 +42,6 @@ async def poll_hon_devices() -> None:
             db_device.temperature = state.get("temperature")
             db_device.ac_mode = state.get("ac_mode")
             db_device.fan_speed = state.get("fan_speed")
-            db_device.eco = state.get("eco")
             db_device.quiet = state.get("quiet")
             db_device.louvre_position = state.get("louvre_position")
             db_device.indoor_temp = state.get("indoor_temp")
