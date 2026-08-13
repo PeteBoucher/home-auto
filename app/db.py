@@ -54,6 +54,8 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN indoor_temp REAL",
             "ALTER TABLE device ADD COLUMN outdoor_temp REAL",
             "ALTER TABLE acsample ADD COLUMN ac_state INTEGER",
+            "ALTER TABLE automation ADD COLUMN trigger_window_start TEXT",
+            "ALTER TABLE automation ADD COLUMN trigger_window_end TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

@@ -314,6 +314,83 @@ class TestWithinTrigger:
             mock_send.assert_awaited_once()
 
 
+class TestTimeWindow:
+    def test_no_window_always_true(self):
+        assert auto_engine._within_time_window(None, None) is True
+
+    def test_only_start_set_ignored(self):
+        assert auto_engine._within_time_window("18:00", None) is True
+
+    def test_within_same_day_window(self):
+        now = datetime(2026, 8, 13, 19, 0)
+        assert auto_engine._within_time_window("18:00", "23:00", now) is True
+
+    def test_outside_same_day_window(self):
+        now = datetime(2026, 8, 13, 8, 0)
+        assert auto_engine._within_time_window("18:00", "23:00", now) is False
+
+    def test_at_window_start_boundary_is_inside(self):
+        now = datetime(2026, 8, 13, 18, 0)
+        assert auto_engine._within_time_window("18:00", "23:00", now) is True
+
+    def test_at_window_end_boundary_is_outside(self):
+        now = datetime(2026, 8, 13, 23, 0)
+        assert auto_engine._within_time_window("18:00", "23:00", now) is False
+
+    def test_overnight_window_late_night_is_inside(self):
+        now = datetime(2026, 8, 13, 23, 30)
+        assert auto_engine._within_time_window("22:00", "06:00", now) is True
+
+    def test_overnight_window_early_morning_is_inside(self):
+        now = datetime(2026, 8, 13, 5, 0)
+        assert auto_engine._within_time_window("22:00", "06:00", now) is True
+
+    def test_overnight_window_midday_is_outside(self):
+        now = datetime(2026, 8, 13, 12, 0)
+        assert auto_engine._within_time_window("22:00", "06:00", now) is False
+
+    def test_end_to_end_window_blocks_outside_and_allows_inside(self, engine, session):
+        from app.devices.models import DeviceType
+
+        auto_engine._last_eval.clear()
+        ac = Device(
+            name="Living Room A/C", device_id="ac-unit-1",
+            type=DeviceType.ac, integration=Integration.hon, online=True, state=True, temperature=22,
+        )
+        session.add(ac)
+        session.commit()
+        session.refresh(ac)
+        rule = Automation(
+            name="Cool enough in the evening, shut off", enabled=True,
+            trigger_type=TriggerType.device_state, trigger_device_id=ac.id,
+            trigger_field="outdoor_temp", trigger_operator="within", trigger_value="2",
+            trigger_compare_field="temperature",
+            trigger_window_start="18:00", trigger_window_end="23:00",
+            action_device_id=ac.id, action_type="set_state_off",
+        )
+        session.add(rule)
+        session.commit()
+
+        near_state = {"outdoor_temp": 23, "temperature": 22, "state": True}
+        morning = datetime(2026, 8, 13, 8, 0)
+        evening = datetime(2026, 8, 13, 19, 0)
+
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.red_alert.is_active", return_value=False),
+            patch("app.services.automation_engine.hon_client.send_command", new=AsyncMock()) as mock_send,
+        ):
+            with patch("app.services.automation_engine.datetime") as mock_dt:
+                mock_dt.now.return_value = morning
+                asyncio.run(auto_engine.check_state_triggers(ac.id, near_state))
+            mock_send.assert_not_awaited()
+
+            with patch("app.services.automation_engine.datetime") as mock_dt:
+                mock_dt.now.return_value = evening
+                asyncio.run(auto_engine.check_state_triggers(ac.id, near_state))
+            mock_send.assert_awaited_once_with("ac-unit-1", {"state": False})
+
+
 class TestSunTriggers:
     def setup_method(self):
         from app.services.scheduler import scheduler

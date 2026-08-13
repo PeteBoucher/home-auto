@@ -111,6 +111,8 @@ class Automation(SQLModel, table=True):
     trigger_compare_field: Optional[str] = None                              # "within" only — other field on the same device to compare trigger_field against
     trigger_sun_event: Optional[str] = None                                  # "sunrise" or "sunset" — sun triggers
     trigger_sun_offset: Optional[int] = None                                 # minutes; negative = before, positive = after
+    trigger_window_start: Optional[str] = None                               # "HH:MM" local — device_state triggers only, optional
+    trigger_window_end: Optional[str] = None                                 # "HH:MM" local — condition is ignored outside [start, end); supports overnight spans (start > end)
 
     # Action
     action_device_id: int = Field(foreign_key="device.id")

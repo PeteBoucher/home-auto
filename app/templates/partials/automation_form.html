@@ -131,6 +131,17 @@
                  placeholder="Value">
         {% endif %}
       </div>
+      <div>
+        <label class="text-xs text-gray-400 block mb-1">Only active during (optional)</label>
+        <div class="flex items-center gap-2">
+          <input type="time" name="trigger_window_start" value="{{ auto.trigger_window_start or '' }}"
+                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <span class="text-xs text-gray-400">to</span>
+          <input type="time" name="trigger_window_end" value="{{ auto.trigger_window_end or '' }}"
+                 class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <span class="text-xs text-gray-400">leave blank for all day</span>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -799,3 +799,46 @@ class TestAutomationWithinTrigger:
         assert auto.trigger_operator == "within"
         assert auto.trigger_value == "2"
         assert auto.trigger_compare_field == "temperature"
+
+
+class TestAutomationTimeWindow:
+    def test_create_captures_time_window(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Evening only",
+            "enabled": "1",
+            "trigger_type": "device_state",
+            "trigger_device_id": str(z2m_bulb.id),
+            "trigger_field": "outdoor_temp",
+            "trigger_operator": "within",
+            "trigger_value": "2",
+            "trigger_compare_field": "temperature",
+            "trigger_window_start": "18:00",
+            "trigger_window_end": "23:00",
+            "action_device_id": str(z2m_bulb.id),
+            "action_type": "set_state_off",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Evening only")).first()
+        assert auto is not None
+        assert auto.trigger_window_start == "18:00"
+        assert auto.trigger_window_end == "23:00"
+
+    def test_create_without_window_leaves_it_unset(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "No window",
+            "enabled": "1",
+            "trigger_type": "device_state",
+            "trigger_device_id": str(z2m_bulb.id),
+            "trigger_field": "state",
+            "trigger_operator": "eq",
+            "trigger_value": "true",
+            "action_device_id": str(z2m_bulb.id),
+            "action_type": "set_state_off",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "No window")).first()
+        assert auto is not None
+        assert auto.trigger_window_start is None
+        assert auto.trigger_window_end is None

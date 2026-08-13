@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from sqlmodel import Session, select
 
@@ -78,6 +78,22 @@ async def _fire(automation: Automation) -> None:
         await hon_client.send_command(device.device_id, command)
 
 
+def _within_time_window(start: str | None, end: str | None, now: datetime | None = None) -> bool:
+    """True if start/end aren't both set (no restriction), or the current
+    local time falls within [start, end). Handles overnight spans (e.g.
+    22:00-06:00) where start > end by treating "in window" as being at or
+    after start OR before end, rather than requiring start <= now <= end."""
+    if not start or not end:
+        return True
+    now_t = (now or datetime.now()).time()
+    start_h, start_m = map(int, start.split(":"))
+    end_h, end_m = map(int, end.split(":"))
+    start_t, end_t = time(start_h, start_m), time(end_h, end_m)
+    if start_t <= end_t:
+        return start_t <= now_t < end_t
+    return now_t >= start_t or now_t < end_t
+
+
 def _eval_condition(field: str, operator: str, trigger_value: str, state: dict, compare_field: str | None = None) -> bool:
     raw = state.get(field)
     if raw is None:
@@ -126,7 +142,10 @@ async def check_state_triggers(device_id: int, state: dict) -> None:
     for auto in automations:
         if not auto.trigger_field or not auto.trigger_operator or auto.trigger_value is None:
             continue
-        met = _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state, auto.trigger_compare_field)
+        met = (
+            _eval_condition(auto.trigger_field, auto.trigger_operator, auto.trigger_value, state, auto.trigger_compare_field)
+            and _within_time_window(auto.trigger_window_start, auto.trigger_window_end)
+        )
         was_met = _last_eval.get(auto.id, False)
         _last_eval[auto.id] = met
         if met and not was_met:

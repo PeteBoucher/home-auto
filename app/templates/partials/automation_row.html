@@ -28,6 +28,9 @@
           {{ auto.trigger_value }}
         {% endif %}
       {% endif %}
+      {% if auto.trigger_type == 'device_state' and auto.trigger_window_start and auto.trigger_window_end %}
+        (only {{ auto.trigger_window_start }}–{{ auto.trigger_window_end }})
+      {% endif %}
       →
       {% if auto.action_type == 'set_state_on' %}Turn on <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span>
       {% elif auto.action_type == 'set_state_off' %}Turn off <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span>
