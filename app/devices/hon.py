@@ -55,6 +55,19 @@ def _pval(params: dict, key: str, default=None) -> Any:
     return v.value if hasattr(v, "value") else v
 
 
+_NO_DATA_SENTINEL = -64.0  # Haier's own "no reading" placeholder for an unwired
+# channel — permanently seen on tempDefrostOutdoor/tempInAirOutdoor on this unit,
+# and briefly seen on tempOutdoor during a real telemetry glitch (2026-08-17,
+# self-corrected within 60s). Treat it as "no reading" rather than a real value.
+
+
+def _valid_temp(raw: Any) -> float | None:
+    if raw is None:
+        return None
+    value = float(raw)
+    return None if value == _NO_DATA_SENTINEL else value
+
+
 async def get_appliances() -> list:
     return _hon.appliances if _hon else []
 
@@ -80,8 +93,8 @@ async def get_state(device_id: str) -> dict[str, Any]:
             "fan_speed": int(_pval(params, "windSpeed", 0)),
             "quiet": bool(int(_pval(params, "muteStatus", 0))),
             "louvre_position": int(_pval(params, "windDirectionVertical", 0)),
-            "indoor_temp": float(_pval(params, "tempIndoor")) if _pval(params, "tempIndoor") is not None else None,
-            "outdoor_temp": float(_pval(params, "tempOutdoor")) if _pval(params, "tempOutdoor") is not None else None,
+            "indoor_temp": _valid_temp(_pval(params, "tempIndoor")),
+            "outdoor_temp": _valid_temp(_pval(params, "tempOutdoor")),
         }
     except Exception as e:
         log.warning("hOn get_state error: %s", e)

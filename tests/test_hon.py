@@ -110,6 +110,24 @@ class TestGetState:
         assert state["indoor_temp"] is None
         assert state["outdoor_temp"] is None
 
+    def test_sentinel_no_data_reading_is_treated_as_none(self):
+        # -64 is Haier's own "no reading" placeholder (permanently seen on
+        # unwired channels like tempDefrostOutdoor) — a real telemetry glitch
+        # briefly reported it on tempOutdoor too; must not be stored as -64°C.
+        params = dict(_FULL_PARAMS)
+        params["tempOutdoor"] = _Param(-64.0)
+        _set_appliances(_FakeAppliance("ac-1", params))
+        state = asyncio.run(hon.get_state("ac-1"))
+        assert state["outdoor_temp"] is None
+        assert state["indoor_temp"] == 27.0
+
+    def test_sentinel_no_data_reading_on_indoor_is_treated_as_none(self):
+        params = dict(_FULL_PARAMS)
+        params["tempIndoor"] = _Param(-64.0)
+        _set_appliances(_FakeAppliance("ac-1", params))
+        state = asyncio.run(hon.get_state("ac-1"))
+        assert state["indoor_temp"] is None
+
 
 def _make_start_stop_appliance():
     """An appliance whose startProgram/stopProgram commands use realistic enum
