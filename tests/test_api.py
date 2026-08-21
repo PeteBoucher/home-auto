@@ -131,11 +131,18 @@ class TestZ2MCommands:
             "zigbee2mqtt/living_room_socket/set", {"state": "OFF"}
         )
 
-    def test_optimistic_online_after_command(self, client, z2m_plug, session):
+    def test_command_does_not_optimistically_mark_online(self, client, z2m_plug, session):
+        # A device that's actually unreachable (broken Zigbee join, dead
+        # battery, etc.) must not be shown online just because we sent it a
+        # command — only a real message from the device itself should ever
+        # confirm that (see devices/mqtt.py _apply_state()).
+        z2m_plug.online = False
+        session.add(z2m_plug)
+        session.commit()
         with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()):
             client.post(f"/devices/{z2m_plug.id}/command", data={"state": "true"})
         session.refresh(z2m_plug)
-        assert z2m_plug.online is True
+        assert z2m_plug.online is False
         assert z2m_plug.state is True
 
     def test_color_temp_sent_as_mireds(self, client, z2m_bulb, session):

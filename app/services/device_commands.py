@@ -39,7 +39,11 @@ async def apply_device_command(session: Session, device: Device, command: dict) 
             device.color_mode = "colour"
         if "color_mode" in command and "color_temp" not in command and "color_rgb" not in command:
             device.color_mode = command["color_mode"]
-        device.online = True
+        # Deliberately not marking online here — a device that's actually
+        # unreachable must not be shown online just because we sent it a
+        # command; only a real message from the device itself (state report
+        # or availability topic, via devices/mqtt.py _apply_state()) should
+        # confirm that.
         session.add(device)
         session.commit()
         session.refresh(device)

@@ -92,7 +92,16 @@ async def send_group_command(session: Session, group: DeviceGroup, command: dict
 
 def _apply_command_locally(target, command: dict) -> None:
     """Optimistically mirror a command onto a Device or DeviceGroup's own fields
-    (real confirmation for Zigbee members arrives via the MQTT subscription)."""
+    (real confirmation for Zigbee members arrives via the MQTT subscription).
+
+    Deliberately does NOT touch `online` — a device that's actually unreachable
+    (broken Zigbee join, dead battery, etc.) must not be marked online just
+    because we sent it a command; only a real message from the device itself
+    (state report or availability topic, handled in devices/mqtt.py
+    _apply_state()) should ever confirm that. Optimistically flipping it here
+    previously masked a genuinely broken Uplighter: toggling the group made it
+    show "online" while it stayed completely unresponsive to every control.
+    """
     if "state" in command:
         target.state = command["state"]
     if "brightness" in command:
@@ -105,8 +114,6 @@ def _apply_command_locally(target, command: dict) -> None:
         target.color_mode = "colour"
     if "color_mode" in command and "color_temp" not in command and "color_rgb" not in command:
         target.color_mode = command["color_mode"]
-    if hasattr(target, "online"):
-        target.online = True
 
 
 async def propagate_member_change(device_id: int) -> None:
