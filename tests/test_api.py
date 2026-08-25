@@ -442,13 +442,20 @@ class TestPowerChart:
         assert resp.json() == {"dates": [], "energy_today": []}
 
     def test_energy_daily_returns_rows_within_window(self, client, z2m_plug, session):
+        # Dates relative to "now" rather than hardcoded absolutes — a fixed
+        # date inevitably ages out of a rolling window as real time passes
+        # (bit us in CI: 2026-07-19 was "recent" when written, then wasn't).
+        from datetime import datetime, timedelta
         from app.devices.models import EnergyDailySummary
-        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-06-01", energy_today=0.9, energy_month=20.0))
-        session.add(EnergyDailySummary(device_id=z2m_plug.id, date="2026-07-19", energy_today=0.42, energy_month=12.7))
+        today = datetime.utcnow().date()
+        outside_window = (today - timedelta(days=45)).isoformat()
+        inside_window = (today - timedelta(days=5)).isoformat()
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date=outside_window, energy_today=0.9, energy_month=20.0))
+        session.add(EnergyDailySummary(device_id=z2m_plug.id, date=inside_window, energy_today=0.42, energy_month=12.7))
         session.commit()
         resp = client.get(f"/devices/{z2m_plug.id}/power-chart/energy-daily?days=30")
         data = resp.json()
-        assert data["dates"] == ["2026-07-19"]
+        assert data["dates"] == [inside_window]
         assert data["energy_today"] == [0.42]
 
     def test_energy_monthly_empty(self, client, z2m_plug):
