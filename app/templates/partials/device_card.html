@@ -57,7 +57,7 @@
       hx-target="#device-{{ device.id }}"
       hx-swap="outerHTML"
       name="source_id"
-      class="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+      class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
     >
       <option value="" {% if not device.display_source_id %}selected{% endif %}>Own reading</option>
       {% for s in other_sensors %}
