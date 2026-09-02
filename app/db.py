@@ -56,6 +56,7 @@ def init_db() -> None:
             "ALTER TABLE acsample ADD COLUMN ac_state INTEGER",
             "ALTER TABLE automation ADD COLUMN trigger_window_start TEXT",
             "ALTER TABLE automation ADD COLUMN trigger_window_end TEXT",
+            "ALTER TABLE device ADD COLUMN display_source_id INTEGER REFERENCES device(id)",
         ]:
             try:
                 conn.execute(text(stmt))

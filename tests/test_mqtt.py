@@ -317,7 +317,8 @@ class TestListenResilience:
              patch(
                  "app.services.groups.propagate_member_change",
                  new=AsyncMock(side_effect=[RuntimeError("database is locked"), None]),
-             ) as mock_propagate:
+             ) as mock_propagate, \
+             patch("app.services.sensor_display.sync_display_targets", new=AsyncMock()):
             asyncio.run(mqtt_module._listen(client))
 
         assert mock_propagate.await_count == 2
@@ -330,10 +331,23 @@ class TestListenResilience:
 
         with patch("app.devices.mqtt._apply_state", return_value=(2, {"state": False})), \
              patch("app.services.automation_engine.check_state_triggers", new=AsyncMock()), \
-             patch("app.services.groups.propagate_member_change", new=AsyncMock()) as mock_propagate:
+             patch("app.services.groups.propagate_member_change", new=AsyncMock()) as mock_propagate, \
+             patch("app.services.sensor_display.sync_display_targets", new=AsyncMock()):
             asyncio.run(mqtt_module._listen(client))
 
         mock_propagate.assert_awaited_once_with(2)
+
+    def test_syncs_display_targets_for_each_message(self):
+        msg = _FakeMessage("zigbee2mqtt/device_a", b'{"temperature": 21.5}')
+        client = _FakeClient([msg])
+
+        with patch("app.devices.mqtt._apply_state", return_value=(1, {"sensor_temperature": 21.5})), \
+             patch("app.services.automation_engine.check_state_triggers", new=AsyncMock()), \
+             patch("app.services.groups.propagate_member_change", new=AsyncMock()), \
+             patch("app.services.sensor_display.sync_display_targets", new=AsyncMock()) as mock_sync:
+            asyncio.run(mqtt_module._listen(client))
+
+        mock_sync.assert_awaited_once_with(1)
 
 
 class TestZigbeeGroupManagement:

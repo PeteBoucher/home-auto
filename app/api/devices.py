@@ -19,6 +19,7 @@ from app.services.device_commands import apply_device_command
 from app.services.scheduler import apply_schedule, remove_schedule
 from app.services.automation_engine import check_state_triggers
 from app.services.weather import sun_times_for_date
+from app.services.sensor_display import set_display_source
 from app.templating import templates
 
 _DEVICES_JSON = Path("devices.json")
@@ -484,6 +485,23 @@ async def energy_monthly_data(device_id: int, session: SessionDep, months: int =
         "months": selected,
         "energy_month": [by_month[m] for m in selected],
     }
+
+
+@router.post("/{device_id}/display-source", response_class=HTMLResponse)
+async def display_source_route(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device or device.type != DeviceType.sensor:
+        raise HTTPException(status_code=404)
+    form = await request.form()
+    raw = form.get("source_id")
+    source_id = int(str(raw)) if raw else None
+    if source_id == device.id:
+        raise HTTPException(status_code=400, detail="A sensor can't display its own reading as its source")
+    await set_display_source(session, device, source_id)
+    session.refresh(device)
+    devices = list(session.exec(select(Device)).all())
+    schedule = _get_schedule(device.id, session)
+    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule, "devices": devices})
 
 
 @router.get("/{device_id}/climate-chart", response_class=HTMLResponse)

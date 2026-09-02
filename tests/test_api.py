@@ -238,6 +238,56 @@ class TestSchedule:
         assert session.exec(select(Schedule).where(Schedule.device_id == z2m_plug.id)).first() is None
 
 
+class TestDisplaySource:
+    @pytest.fixture(name="second_sensor")
+    def second_sensor_fixture(self, session):
+        from app.devices.models import Device, DeviceType, Integration
+        device = Device(
+            name="Temp/Humidity", room="Front yard", device_id="front_yard_sensor",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            online=True, sensor_temperature=32.7, humidity=51.2,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        return device
+
+    def test_sets_source_and_pushes_reading(self, client, z2m_sensor, second_sensor, session):
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": str(second_sensor.id)})
+        assert resp.status_code == 200
+        session.refresh(z2m_sensor)
+        assert z2m_sensor.display_source_id == second_sensor.id
+        published = [c.args[1] for c in mock_pub.await_args_list]
+        assert {"temperature_sensor_select": "external"} in published
+
+    def test_clearing_source(self, client, z2m_sensor, second_sensor, session):
+        z2m_sensor.display_source_id = second_sensor.id
+        session.add(z2m_sensor)
+        session.commit()
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()):
+            resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": ""})
+        assert resp.status_code == 200
+        session.refresh(z2m_sensor)
+        assert z2m_sensor.display_source_id is None
+
+    def test_cannot_target_self(self, client, z2m_sensor):
+        resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": str(z2m_sensor.id)})
+        assert resp.status_code == 400
+
+    def test_404_for_non_sensor(self, client, z2m_plug):
+        resp = client.post(f"/devices/{z2m_plug.id}/display-source", data={"source_id": ""})
+        assert resp.status_code == 404
+
+    def test_dropdown_shown_with_multiple_sensors(self, client, z2m_sensor, second_sensor):
+        resp = client.get("/devices/grid")
+        assert "display-source" in resp.text
+
+    def test_dropdown_hidden_with_only_one_sensor(self, client, z2m_sensor):
+        resp = client.get("/devices/grid")
+        assert "display-source" not in resp.text
+
+
 class TestClimateChart:
     def test_chart_page(self, client, z2m_sensor):
         resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")

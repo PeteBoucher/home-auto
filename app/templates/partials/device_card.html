@@ -47,6 +47,26 @@
     {% endif %}
   </div>
 
+  {% set other_sensors = (devices | selectattr('type.value', 'equalto', 'sensor') | rejectattr('id', 'equalto', device.id) | list) if devices is defined else [] %}
+  {% if other_sensors %}
+  <div class="flex items-center gap-2 -mt-1">
+    <span class="text-xs text-gray-400 flex-shrink-0">Device screen shows</span>
+    <select
+      hx-post="/devices/{{ device.id }}/display-source"
+      hx-trigger="change"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      name="source_id"
+      class="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+    >
+      <option value="" {% if not device.display_source_id %}selected{% endif %}>Own reading</option>
+      {% for s in other_sensors %}
+      <option value="{{ s.id }}" {% if device.display_source_id == s.id %}selected{% endif %}>{{ s.room + ' — ' if s.room else '' }}{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+
   {% elif device.type.value == "tv" %}
   {% set ms = device.media_state or "off" %}
   <div class="flex items-center justify-between py-1">

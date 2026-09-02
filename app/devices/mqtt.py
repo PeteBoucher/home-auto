@@ -134,6 +134,7 @@ def build_set_payload(command: dict) -> dict:
 async def _listen(client: aiomqtt.Client) -> None:
     from app.services.automation_engine import check_state_triggers  # deferred to avoid circular import
     from app.services.groups import propagate_member_change  # deferred to avoid circular import
+    from app.services.sensor_display import sync_display_targets  # deferred to avoid circular import
     async for message in client.messages:
         topic = str(message.topic)
         try:
@@ -154,6 +155,7 @@ async def _listen(client: aiomqtt.Client) -> None:
             if result:
                 await check_state_triggers(*result)
                 await propagate_member_change(result[0])
+                await sync_display_targets(result[0])
         except Exception:
             # A single bad message (e.g. a DB write colliding with another writer)
             # must not tear down the whole listener — that drops the MQTT session
