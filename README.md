@@ -4,23 +4,50 @@ A local-first home automation dashboard running on a Raspberry Pi. Controls smar
 
 ## Supported devices
 
-| Integration | Protocol | Devices |
-|---|---|---|
-| Tuya LAN | `tinytuya` (direct LAN, v3.3/v3.5) | Smart bulbs (RGB + white), smart plugs |
-| Zigbee2MQTT | MQTT over local broker | Zigbee sockets, bulbs, temperature/humidity sensors |
-| hOn | pyhOn cloud API | Haier A/C (experimental) |
-| Fire TV | ADB over network | Amazon Fire TV Stick (monitoring, feature-flagged) |
+| Integration | Transport | Device classes |
+| --- | --- | --- |
+| Tuya | `tinytuya` — direct LAN (protocol v3.3 / v3.5) | Smart bulbs (RGB + tunable white), smart plugs |
+| Zigbee2MQTT | MQTT via local Mosquitto broker | Bulbs, plugs (incl. power metering), temperature/humidity sensors |
+| hOn | `pyhOn` — Haier cloud API (needs internet) | Haier air conditioner: power, mode, target temp, fan speed, louvre, quiet |
+| Fire TV | `androidtv` — ADB over LAN (feature-flagged, off by default) | Amazon Fire TV — playback-state monitoring |
+
+Any Zigbee device supported by Zigbee2MQTT should work for its device class; import it via `/devices/z2m` and pick the matching type.
+
+### Tested hardware
+
+The specific models running in the live deployment:
+
+| Device | Model | Integration | Notes |
+| --- | --- | --- | --- |
+| Air conditioner | Haier AS35RBAHRA-4 | hOn | Full control. "Eco" isn't exposed usefully by the cloud API — see `app/devices/hon.py`. |
+| Smart bulb | Lidl / Silvercrest (Tuya) | Tuya LAN | RGB + white + brightness |
+| Smart bulb | Innr RB 282 C — E27 RGBW | Zigbee2MQTT | ×2 |
+| Smart plug | Lidl / Silvercrest HG06337 | Zigbee2MQTT | On/off |
+| Smart plug | Sonoff S60ZBTPF | Zigbee2MQTT | On/off + voltage / power / current / energy metering |
+| Temp + humidity sensor | Sonoff SNZB-02 | Zigbee2MQTT | Basic indoor sensor |
+| Temp + humidity sensor | Sonoff SNZB-02DR2 | Zigbee2MQTT | E-ink screen with a secondary "EXT1" field that can mirror another sensor |
+| Outdoor temp + humidity sensor | Sonoff SNZB-02WD | Zigbee2MQTT | IP65-rated, wide range, for exterior mounting |
+
+**Partially working / blocked:**
+
+- **Haier smart TV (H50S80GUX)** — pairs via hOn, but `pyhOn`'s generic command builder produces payloads Haier's cloud accepts and the TV then ignores. Shelved pending a traffic capture of the official app; TV control code is not shipped.
+- **Fire TV Stick 4K Select** — runs Amazon's Vega OS, which exposes no ADB. The ADB monitoring below only works on Android-based Fire OS devices.
 
 ## Features
 
 ### Dashboard
 
 - Live device cards with on/off toggle, brightness, colour temperature, and RGB colour picker for bulbs
+- Air conditioner card: power, mode, target temp, fan speed, a louvre-position diagram, quiet toggle, plus live indoor/outdoor temperature
 - Temperature and humidity sensor cards showing live readings, battery level, and a link to the climate history chart
-- Inline device rename
+- Smart-plug cards showing power draw, and a link to the power/energy history charts
+- [Climate overview widget](#climate-overview) at the top of the dashboard — every room's temperature and humidity on one chart
+- [Device groups](#device-groups) — control several lights as one, kept in sync
+- Inline device rename and room assignment
 - Served from local DB cache — loads instantly; HTMX auto-refreshes device state every 30 seconds
 - All JS/CSS assets bundled locally — dashboard works fully on LAN with no internet connection
 - [RoachCam](#roachcam) live MJPEG feed embedded when configured
+- `/history` — event log of automation firings and errors; `/network` — LAN device map with WAN reachability check
 
 ### Evening timer
 
@@ -28,42 +55,72 @@ Each device card has a **Timer** section. Set an on-time and off-time; the sched
 
 ### Automation rule engine
 
-Create rules at `/automations` with time or device-state triggers and cross-device actions.
+Create rules at `/automations` with time or device-state triggers and cross-device actions. Actions can target any integration, including the A/C.
 
 **Trigger types:**
 
 | Type | Example |
-|---|---|
+| --- | --- |
 | Time of day | Fire at 22:30 every day |
-| Sunrise / sunset | Fire 30 minutes after sunset |
-| Device state | When Zigbee plug turns on |
+| Sunrise / sunset | Fire 30 minutes after sunset (sun times from Open-Meteo, with an offline `astral` fallback) |
+| Device state | When Zigbee plug turns on; when the A/C's outdoor temp drops below 20° |
 | Fire TV media state | When Fire TV starts playing |
 | Fire TV app ID | When Netflix launches |
 
+**Device-state trigger fields:** `state`, `brightness`, `online`, `temperature` (A/C target), `indoor_temp`, `outdoor_temp`, `media_state`, `app_id`.
+
+**Operators:** `=`, `≠`, `>`, `<`, and `within ± of` — compares two live fields on the same device (e.g. "outdoor temp within 1° of the target temp").
+
+**Time window (device-state triggers only):** optionally restrict a rule to a start–end window ("only 18:00–23:00"). Leaving the window resets the edge, so re-entering it with the condition still true re-arms a fresh fire. Overnight spans (`22:00`–`06:00`) work.
+
 **Actions:** turn on/off, set brightness, set colour temperature, set RGB colour.
 
-State triggers are edge-detected — the rule fires once on the False→True transition, not on every poll.
+State triggers are edge-detected — the rule fires once on the false→true transition, not on every poll.
+
+### Device groups
+
+Create a group at `/groups` from any mix of Zigbee and Tuya lights. A group card on the dashboard controls all members at once (on/off, brightness, colour). Zigbee members are mirrored into a real Zigbee2MQTT group, so a group command is a single native groupcast rather than one message per bulb; non-Zigbee members are commanded alongside it.
+
+Members stay in sync: a confirmed state change on any member — from the dashboard, an automation, a poll, or a physical switch — pulls the others to match.
+
+Commanding one member from its own card (for task lighting) marks it **Independent** and detaches it from group sync until the group itself is next commanded, which re-syncs everyone.
+
+### Climate overview
+
+A widget at the top of the dashboard charts temperature and humidity for every room on one graph — temperature on the left axis (solid lines), humidity on the right (dashed), each room in its own colour. The A/C's own indoor and outdoor sensors appear as extra lines. Readings from multiple sensors in the same room are averaged into one line. 1h / 6h / 24h / 7d windows, auto-refreshing on the dashboard's 30-second cadence.
+
+### Air conditioner
+
+The Haier A/C card exposes power, mode (auto / cool / heat / dry / fan), target temperature, fan speed, vertical louvre position (shown as a small diagram), and a quiet toggle. It also shows the unit's own indoor and outdoor temperature readings, and a **Chart** link plots target / indoor / outdoor temperature over time.
+
+The integration talks to Haier's hOn cloud via `pyhOn`, so it needs internet. Set `HON_EMAIL` / `HON_PASSWORD` in `.env`. Several non-obvious quirks of the cloud API are documented in `app/devices/hon.py` and `.claude/memory/project.md`.
+
+### Power & energy history
+
+Smart plugs that report metering (e.g. Sonoff S60ZBTPF) log voltage, power, and current to `PowerSample` on every report (pruned after 7 days). The plug's **Chart** link shows those as time-series with 1h / 6h / 24h / 7d windows, plus energy-by-day and energy-by-calendar-month bar charts backed by an `EnergyDailySummary` table kept indefinitely.
 
 ### Temperature and humidity sensors
 
-Zigbee sensors (tested with Sonoff SNZB-02) are registered via the Z2M import page (`/devices/z2m`). Select **Sensor** as the device type when importing.
+Zigbee sensors (tested with Sonoff SNZB-02, SNZB-02DR2, SNZB-02WD) are registered via the Z2M import page (`/devices/z2m`). Select **Sensor** as the device type when importing.
 
 The dashboard card shows live temperature, humidity, and battery level. A **Chart** link opens a history page with 1h / 6h / 24h / 7d lookback windows.
 
 Readings are stored in `ClimateSample` on every report from the sensor. On app restart, the last known values are seeded from Zigbee2MQTT's `state.json` so the card shows data immediately rather than waiting up to an hour for the next natural sensor report.
 
+**Secondary display (SNZB-02DR2):** this model has an e-ink screen with a smaller "EXT1" field alongside its own reading. The card's **Screen EXT1 field** dropdown feeds that field from another sensor — e.g. an outdoor sensor's temperature shown on an indoor unit. The device's own reading always stays primary. (Humidity mirroring depends on device firmware; the current unit rejects it.)
+
 ### Weather automation
 
 Polls [Open-Meteo](https://open-meteo.com/) every 10 minutes for the configured location. When it's raining (WMO codes 51–99), all Tuya bulbs switch to pale blue (`#add8e6`). When rain clears, they restore to their previous state (mode, colour, brightness, and colour temperature). Configure location via `.env`:
 
-```
+```env
 LAT=<your latitude>
 LON=<your longitude>
 ```
 
 ### Red Alert
 
-A RED ALERT button in the nav flashes all RGB bulbs bright red at ~1 Hz using a persistent LAN socket per bulb (no reconnect overhead per flash). Stand Down restores the pre-alert state. Auto-cancels after 60 seconds. The dashboard auto-poll is suppressed during the alert so cards don't flicker.
+A RED ALERT button in the nav flashes all RGB bulbs bright red at ~1 Hz — Tuya bulbs via a persistent LAN socket per bulb (no reconnect overhead per flash), Zigbee bulbs via `/set` with `transition: 0`. Stand Down restores the pre-alert state. Auto-cancels after 60 seconds. The dashboard auto-poll and device-state automations are suppressed during the alert so cards don't flicker and rules don't fire on every flash.
 
 ### RoachCam
 
@@ -111,13 +168,15 @@ Polls an Amazon Fire TV Stick every 5 seconds over ADB and exposes playback stat
 
 ## Stack
 
-- **FastAPI** + **HTMX** — server-rendered UI with partial HTML swaps
-- **SQLModel** + **SQLite** — device, schedule, and automation persistence
+- **FastAPI** + **Jinja2** + **HTMX** — server-rendered UI with partial HTML swaps
+- **SQLModel** + **SQLite** (WAL mode) — device, group, schedule, automation, and time-series persistence
+- **Chart.js** (bundled) — climate, A/C, and power history charts
 - **tinytuya** — Tuya LAN protocol (v3.3 and v3.5)
 - **aiomqtt** — Zigbee2MQTT bridge
+- **pyhOn** — Haier hOn cloud API
 - **androidtv** — Fire TV ADB polling
-- **APScheduler 3.x** — evening timers, weather polling, and time-based automations
-- **httpx** — async Open-Meteo requests
+- **APScheduler 3.x** — timers, weather polling, Tuya/hOn state polling, and time-based automations
+- **httpx** + **astral** — Open-Meteo requests, with offline sunrise/sunset fallback
 
 ## Raspberry Pi deployment
 
@@ -156,11 +215,17 @@ Create `/opt/home-auto/.env`:
 LAT=<your latitude>
 LON=<your longitude>
 
+# Haier A/C (hOn cloud) — needed for the air conditioner card
+HON_EMAIL=<your hon account email>
+HON_PASSWORD=<your hon account password>
+
 # Optional integrations
 ROACHCAM_URL=http://roachcam.local:8080
 FIRETV_HOST=<fire-tv-ip>
 FIRETV_ENABLED=false   # set to true to enable ADB polling and remote control buttons
 ```
+
+The A/C integration is skipped silently if `HON_EMAIL` / `HON_PASSWORD` are unset.
 
 ### Deployment pipeline
 
@@ -210,6 +275,6 @@ uvicorn app.main:app --reload
 
 ## Notes on smart bulbs and physical switches
 
-Smart bulbs need constant power to receive commands. If a physical switch cuts power to the bulb, it goes offline and can't be controlled until power is restored — at which point it typically powers on at full white brightness regardless of the app's last command. The 30-second dashboard auto-poll will reflect the change within half a minute.
+Smart bulbs need constant power to receive commands. If a physical switch cuts power to the bulb, it goes offline and can't be controlled until power is restored — at which point it comes back on according to its `power_on_behavior` setting (the Innr RB 282 C bulbs are set to `previous`, so they restore their last on-state). A brief power blip can therefore switch a bulb back on by itself; the 30-second dashboard auto-poll reflects the change within half a minute.
 
 The proper fix is to wire a smart relay (e.g. Sonoff ZBMINI) behind the existing switch so it sends a Zigbee command without cutting power, keeping the bulb always controllable.
