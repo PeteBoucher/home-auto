@@ -67,8 +67,10 @@ class Device(SQLModel, table=True):
     humidity: Optional[float] = None            # sensors: relative humidity %
     battery: Optional[int] = None               # battery-powered devices: %
     display_source_id: Optional[int] = Field(default=None, foreign_key="device.id")
-    # sensor: show another sensor's readings on THIS device's own screen instead of
-    # its own (e.g. SNZB-02DR2's external_temperature/external_humidity datapoints)
+    # sensor: feed another sensor's reading into THIS device's secondary on-screen
+    # field (labelled "EXT1" on the SNZB-02DR2 — its own reading stays primary),
+    # via the external_temperature/external_humidity + temperature_sensor_select
+    # datapoints
 
 
 class DeviceGroup(SQLModel, table=True):

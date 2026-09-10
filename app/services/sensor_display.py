@@ -17,9 +17,10 @@ async def _publish_external_reading(target: Device, temperature: float | None, h
 
 async def sync_display_targets(source_device_id: int) -> None:
     """Whenever a sensor's own reading updates, push it to any other sensor
-    whose screen is configured to display readings from this one instead of
-    its own (Z2M's external_temperature/external_humidity datapoints, on
-    models that support them, e.g. SNZB-02DR2)."""
+    configured to show this one in its secondary on-screen field (Z2M's
+    external_temperature/external_humidity datapoints, on models that support
+    them — e.g. the SNZB-02DR2, which shows it as a smaller "EXT1" readout
+    alongside, not replacing, its own reading)."""
     with Session(engine) as session:
         source = session.get(Device, source_device_id)
         if not source:
@@ -30,9 +31,11 @@ async def sync_display_targets(source_device_id: int) -> None:
 
 
 async def set_display_source(session: Session, target: Device, source_id: int | None) -> None:
-    """Link/unlink `target`'s screen to show `source_id`'s readings instead of
-    its own. Setting a source flips the display over immediately and pushes
-    its current reading; clearing it reverts the display to its own sensor."""
+    """Link/unlink `target`'s secondary on-screen field to `source_id`. Setting
+    a source enables the field (temperature_sensor_select=external) and pushes
+    the source's current reading; clearing it disables the field again
+    (temperature_sensor_select=internal). The device's own reading stays
+    primary either way."""
     target.display_source_id = source_id
     session.add(target)
     session.commit()
