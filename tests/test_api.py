@@ -252,38 +252,54 @@ class TestDisplaySource:
         session.refresh(device)
         return device
 
-    def test_sets_source_and_pushes_reading(self, client, z2m_sensor, second_sensor, session):
-        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
-            resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": str(second_sensor.id)})
-        assert resp.status_code == 200
+    @pytest.fixture(name="ext_sensor")
+    def ext_sensor_fixture(self, session, z2m_sensor):
+        z2m_sensor.has_external_display = True
+        session.add(z2m_sensor)
+        session.commit()
         session.refresh(z2m_sensor)
-        assert z2m_sensor.display_source_id == second_sensor.id
+        return z2m_sensor
+
+    def test_sets_source_and_pushes_reading(self, client, ext_sensor, second_sensor, session):
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{ext_sensor.id}/display-source", data={"source_id": str(second_sensor.id)})
+        assert resp.status_code == 200
+        session.refresh(ext_sensor)
+        assert ext_sensor.display_source_id == second_sensor.id
         published = [c.args[1] for c in mock_pub.await_args_list]
         assert {"temperature_sensor_select": "external"} in published
 
-    def test_clearing_source(self, client, z2m_sensor, second_sensor, session):
-        z2m_sensor.display_source_id = second_sensor.id
-        session.add(z2m_sensor)
+    def test_clearing_source(self, client, ext_sensor, second_sensor, session):
+        ext_sensor.display_source_id = second_sensor.id
+        session.add(ext_sensor)
         session.commit()
         with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()):
-            resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": ""})
+            resp = client.post(f"/devices/{ext_sensor.id}/display-source", data={"source_id": ""})
         assert resp.status_code == 200
-        session.refresh(z2m_sensor)
-        assert z2m_sensor.display_source_id is None
+        session.refresh(ext_sensor)
+        assert ext_sensor.display_source_id is None
 
-    def test_cannot_target_self(self, client, z2m_sensor):
-        resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": str(z2m_sensor.id)})
+    def test_cannot_target_self(self, client, ext_sensor):
+        resp = client.post(f"/devices/{ext_sensor.id}/display-source", data={"source_id": str(ext_sensor.id)})
+        assert resp.status_code == 400
+
+    def test_400_without_external_display(self, client, z2m_sensor, second_sensor):
+        resp = client.post(f"/devices/{z2m_sensor.id}/display-source", data={"source_id": str(second_sensor.id)})
         assert resp.status_code == 400
 
     def test_404_for_non_sensor(self, client, z2m_plug):
         resp = client.post(f"/devices/{z2m_plug.id}/display-source", data={"source_id": ""})
         assert resp.status_code == 404
 
-    def test_dropdown_shown_with_multiple_sensors(self, client, z2m_sensor, second_sensor):
+    def test_dropdown_shown_on_ext_display_sensor_with_others(self, client, ext_sensor, second_sensor):
         resp = client.get("/devices/grid")
         assert "display-source" in resp.text
 
-    def test_dropdown_hidden_with_only_one_sensor(self, client, z2m_sensor):
+    def test_dropdown_hidden_without_external_display(self, client, z2m_sensor, second_sensor):
+        resp = client.get("/devices/grid")
+        assert "display-source" not in resp.text
+
+    def test_dropdown_hidden_with_only_one_sensor(self, client, ext_sensor):
         resp = client.get("/devices/grid")
         assert "display-source" not in resp.text
 

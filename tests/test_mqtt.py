@@ -166,6 +166,17 @@ class TestApplyState:
         assert d.humidity == 55.2
         assert d.battery == 86
 
+    def test_temperature_sensor_select_flags_external_display(self, engine, session, z2m_sensor):
+        assert z2m_sensor.has_external_display is False
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 21.5, "temperature_sensor_select": "internal"})
+        assert _refresh(session, z2m_sensor).has_external_display is True
+
+    def test_plain_sensor_report_does_not_flag_external_display(self, engine, session, z2m_sensor):
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 21.5, "humidity": 55.2})
+        assert _refresh(session, z2m_sensor).has_external_display is False
+
     def test_sensor_not_marked_offline_by_availability(self, engine, session, z2m_sensor):
         # Availability heartbeat must not flip a sensor offline between readings
         with patch("app.devices.mqtt.engine", engine):

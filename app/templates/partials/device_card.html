@@ -48,7 +48,7 @@
   </div>
 
   {% set other_sensors = (devices | selectattr('type.value', 'equalto', 'sensor') | rejectattr('id', 'equalto', device.id) | list) if devices is defined else [] %}
-  {% if other_sensors %}
+  {% if device.has_external_display and other_sensors %}
   <div class="flex items-center gap-2 -mt-1">
     <span class="text-xs text-gray-400 flex-shrink-0" title="The device always shows its own reading; this feeds the smaller secondary 'EXT1' field on its screen">Screen EXT1 field</span>
     <select

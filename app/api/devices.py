@@ -492,6 +492,8 @@ async def display_source_route(device_id: int, request: Request, session: Sessio
     device = session.get(Device, device_id)
     if not device or device.type != DeviceType.sensor:
         raise HTTPException(status_code=404)
+    if not device.has_external_display:
+        raise HTTPException(status_code=400, detail="This sensor has no secondary on-screen field")
     form = await request.form()
     raw = form.get("source_id")
     source_id = int(str(raw)) if raw else None

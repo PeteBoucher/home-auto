@@ -21,7 +21,7 @@ The specific models running in the live deployment:
 | --- | --- | --- | --- |
 | Air conditioner | Haier AS35RBAHRA-4 | hOn | Full control. "Eco" isn't exposed usefully by the cloud API — see `app/devices/hon.py`. |
 | Smart bulb | Lidl / Silvercrest (Tuya) | Tuya LAN | RGB + white + brightness |
-| Smart bulb | Innr RB 282 C — E27 RGBW | Zigbee2MQTT | ×2 |
+| Smart bulb | Innr RB 282 C — E27 RGBW | Zigbee2MQTT | |
 | Smart plug | Lidl / Silvercrest HG06337 | Zigbee2MQTT | On/off |
 | Smart plug | Sonoff S60ZBTPF | Zigbee2MQTT | On/off + voltage / power / current / energy metering |
 | Temp + humidity sensor | Sonoff SNZB-02 | Zigbee2MQTT | Basic indoor sensor |
@@ -107,7 +107,7 @@ The dashboard card shows live temperature, humidity, and battery level. A **Char
 
 Readings are stored in `ClimateSample` on every report from the sensor. On app restart, the last known values are seeded from Zigbee2MQTT's `state.json` so the card shows data immediately rather than waiting up to an hour for the next natural sensor report.
 
-**Secondary display (SNZB-02DR2):** this model has an e-ink screen with a smaller "EXT1" field alongside its own reading. The card's **Screen EXT1 field** dropdown feeds that field from another sensor — e.g. an outdoor sensor's temperature shown on an indoor unit. The device's own reading always stays primary. (Humidity mirroring depends on device firmware; the current unit rejects it.)
+**Secondary display — SNZB-02DR2 only:** this specific model has an e-ink screen with a smaller "EXT1" field alongside its own reading (the SNZB-02WD and plain SNZB-02 only ever show their own reading). When a sensor reports the capability, its card gains a **Screen EXT1 field** dropdown that feeds that field from another sensor — e.g. the outdoor SNZB-02WD's temperature shown on the indoor DR2. The device's own reading always stays primary. (Humidity mirroring depends on firmware; the current unit rejects it.)
 
 ### Weather automation
 

@@ -88,6 +88,10 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.humidity = round(float(payload["humidity"]), 1)
         if "battery" in payload:
             device.battery = int(payload["battery"])
+        if "temperature_sensor_select" in payload and not device.has_external_display:
+            # Only devices with a secondary on-screen field (SNZB-02DR2) report
+            # this — flags the device so its card offers the EXT1 display control.
+            device.has_external_display = True
         session.add(device)
         if any(k in payload for k in ("power", "voltage", "current", "energy_today", "energy_month")):
             session.add(PowerSample(

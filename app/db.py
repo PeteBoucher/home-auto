@@ -57,6 +57,7 @@ def init_db() -> None:
             "ALTER TABLE automation ADD COLUMN trigger_window_start TEXT",
             "ALTER TABLE automation ADD COLUMN trigger_window_end TEXT",
             "ALTER TABLE device ADD COLUMN display_source_id INTEGER REFERENCES device(id)",
+            "ALTER TABLE device ADD COLUMN has_external_display INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))
