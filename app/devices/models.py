@@ -18,6 +18,7 @@ class DeviceType(str, Enum):
     ac = "ac"
     tv = "tv"
     sensor = "sensor"
+    switch = "switch"  # in-wall relay behind a physical switch (e.g. Sonoff ZBMINIR2) — on/off only, no metering
 
 
 class Integration(str, Enum):

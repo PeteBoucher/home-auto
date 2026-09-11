@@ -7,7 +7,7 @@ A local-first home automation dashboard running on a Raspberry Pi. Controls smar
 | Integration | Transport | Device classes |
 | --- | --- | --- |
 | Tuya | `tinytuya` — direct LAN (protocol v3.3 / v3.5) | Smart bulbs (RGB + tunable white), smart plugs |
-| Zigbee2MQTT | MQTT via local Mosquitto broker | Bulbs, plugs (incl. power metering), temperature/humidity sensors |
+| Zigbee2MQTT | MQTT via local Mosquitto broker | Bulbs, plugs (incl. power metering), in-wall switch relays, temperature/humidity sensors |
 | hOn | `pyhOn` — Haier cloud API (needs internet) | Haier air conditioner: power, mode, target temp, fan speed, louvre, quiet |
 | Fire TV | `androidtv` — ADB over LAN (feature-flagged, off by default) | Amazon Fire TV — playback-state monitoring |
 
@@ -24,6 +24,7 @@ The specific models running in the live deployment:
 | Smart bulb | Innr RB 282 C — E27 RGBW | Zigbee2MQTT | |
 | Smart plug | Lidl / Silvercrest HG06337 | Zigbee2MQTT | On/off |
 | Smart plug | Sonoff S60ZBTPF | Zigbee2MQTT | On/off + voltage / power / current / energy metering |
+| Smart switch (in-wall relay) | Sonoff ZBMINIR2 | Zigbee2MQTT | Wired behind an existing physical switch — controls the light without cutting its power, so it stays always reachable. On/off only, no metering. |
 | Temp + humidity sensor | Sonoff SNZB-02 | Zigbee2MQTT | Basic indoor sensor |
 | Temp + humidity sensor | Sonoff SNZB-02DR2 | Zigbee2MQTT | E-ink screen with a secondary "EXT1" field that can mirror another sensor |
 | Outdoor temp + humidity sensor | Sonoff SNZB-02WD | Zigbee2MQTT | IP65-rated, wide range, for exterior mounting |
@@ -277,4 +278,4 @@ uvicorn app.main:app --reload
 
 Smart bulbs need constant power to receive commands. If a physical switch cuts power to the bulb, it goes offline and can't be controlled until power is restored — at which point it comes back on according to its `power_on_behavior` setting (the Innr RB 282 C bulbs are set to `previous`, so they restore their last on-state). A brief power blip can therefore switch a bulb back on by itself; the 30-second dashboard auto-poll reflects the change within half a minute.
 
-The proper fix is to wire a smart relay (e.g. Sonoff ZBMINI) behind the existing switch so it sends a Zigbee command without cutting power, keeping the bulb always controllable.
+The proper fix is to wire a smart relay (e.g. Sonoff ZBMINIR2) behind the existing switch so it sends a Zigbee command without cutting power, keeping the bulb always controllable. Import it via `/devices/z2m` as a **Smart Switch** — a bare on/off card with no brightness/colour/metering, same idea as a plug but for a permanently-wired circuit rather than something you plug in.

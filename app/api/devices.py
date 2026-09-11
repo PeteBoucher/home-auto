@@ -36,10 +36,17 @@ def _load_devices_json() -> list[dict]:
 def _infer_type(data: dict) -> str:
     category = data.get("category", "").lower()
     name = data.get("name", "").lower()
+    model = data.get("model", "").lower()
+    description = data.get("description", "").lower()
     if category in _BULB_CATEGORIES or any(w in name for w in ("bulb", "light", "lamp")):
         return "bulb"
     if any(w in name for w in ("sensor", "temperature", "humidity", "temp", "thermo")):
         return "sensor"
+    # In-wall relay modules (e.g. Sonoff ZBMINI/ZBMINIL/ZBMINIR2) report a model/
+    # description Z2M's own device list carries, unlike `name` which is still the
+    # raw friendly_name (usually the IEEE address) at discovery time, before import.
+    if "zbmini" in model or any(w in description for w in ("relay", "switch module")) or any(w in name for w in ("switch", "relay")):
+        return "switch"
     return "plug"
 
 def _get_schedule(device_id: int, session: Session) -> Schedule | None:
@@ -163,8 +170,13 @@ async def z2m_discover_page(request: Request, session: SessionDep):
     devices = []
     if discovered:
         for d in discovered:
+            defn = d.get("definition") or {}
             d["_registered"] = d.get("friendly_name") in existing_ids
-            d["_type_guess"] = _infer_type({"name": d.get("friendly_name", "")})
+            d["_type_guess"] = _infer_type({
+                "name": d.get("friendly_name", ""),
+                "model": defn.get("model", ""),
+                "description": defn.get("description", ""),
+            })
             devices.append(d)
     return templates.TemplateResponse(
         request, "z2m_discover.html", {"devices": devices, "broker_available": discovered is not None}

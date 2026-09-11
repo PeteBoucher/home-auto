@@ -156,6 +156,68 @@ class TestZ2MCommands:
         assert z2m_bulb.color_temp == 0
         assert z2m_bulb.color_mode == "white"
 
+
+class TestSwitchDeviceType:
+    def test_toggle_on(self, client, z2m_switch):
+        with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            resp = client.post(f"/devices/{z2m_switch.id}/command", data={"state": "true"})
+        assert resp.status_code == 200
+        assert "On" in resp.text
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/hallway_switch/set", {"state": "ON"}
+        )
+
+    def test_card_shows_only_the_toggle_no_extras(self, client, z2m_switch):
+        resp = client.get("/devices/grid")
+        assert "Hallway switch" in resp.text
+        # No power-metering, bulb, or A/C controls — a switch is on/off only.
+        assert "Power</p>" not in resp.text
+        assert "Dimmable" not in resp.text
+        assert "Louvre" not in resp.text
+
+    def test_card_still_gets_a_schedule_section(self, client, z2m_switch):
+        resp = client.get("/devices/grid")
+        assert f"/devices/{z2m_switch.id}/schedule" in resp.text
+
+    def test_can_be_grouped_with_a_bulb(self, session, z2m_switch, z2m_bulb):
+        from app.devices.models import DeviceGroup
+        group = DeviceGroup(name="Hallway")
+        session.add(group)
+        session.commit()
+        z2m_switch.group_id = group.id
+        z2m_bulb.group_id = group.id
+        session.add(z2m_switch)
+        session.add(z2m_bulb)
+        session.commit()
+        session.refresh(z2m_switch)
+        assert z2m_switch.group_id == group.id
+
+
+class TestInferType:
+    def test_bulb_from_name(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "Living room lamp"}) == "bulb"
+
+    def test_sensor_from_name(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "Bedroom temperature"}) == "sensor"
+
+    def test_switch_from_zbmini_model(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "0xa4c1380000000000", "model": "ZBMINIR2"}) == "switch"
+
+    def test_switch_from_relay_description(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "0xa4c1380000000000", "description": "Zigbee smart switch module (relay)"}) == "switch"
+
+    def test_switch_from_name_once_renamed(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "Hallway switch"}) == "switch"
+
+    def test_unmatched_defaults_to_plug(self):
+        from app.api.devices import _infer_type
+        assert _infer_type({"name": "0xa4c1380000000000"}) == "plug"
+
     def test_color_rgb_sent_as_hue_saturation(self, client, z2m_bulb, session):
         with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
             resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"color_rgb": "#ff0000"})

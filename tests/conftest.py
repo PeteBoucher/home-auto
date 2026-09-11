@@ -63,6 +63,22 @@ def z2m_plug_fixture(session):
     return device
 
 
+@pytest.fixture(name="z2m_switch")
+def z2m_switch_fixture(session):
+    device = Device(
+        name="Hallway switch",
+        device_id="hallway_switch",
+        type=DeviceType.switch,
+        integration=Integration.zigbee2mqtt,
+        online=True,
+        state=False,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
 @pytest.fixture(name="z2m_bulb")
 def z2m_bulb_fixture(session):
     device = Device(
