@@ -366,6 +366,40 @@ class TestDisplaySource:
         assert "display-source" not in resp.text
 
 
+class TestTimeInRangeTimer:
+    @pytest.fixture(name="ranged_sensor")
+    def ranged_sensor_fixture(self, session, z2m_sensor):
+        from datetime import datetime
+        z2m_sensor.temp_range_low = 45
+        z2m_sensor.temp_range_high = 50
+        z2m_sensor.time_in_range_seconds = 3725  # 1h 2m
+        z2m_sensor.time_in_range_updated_at = datetime.utcnow()
+        session.add(z2m_sensor)
+        session.commit()
+        session.refresh(z2m_sensor)
+        return z2m_sensor
+
+    def test_card_shows_formatted_time_in_range(self, client, ranged_sensor):
+        resp = client.get("/devices/grid")
+        assert "In range (45" in resp.text
+        assert "1h 2m" in resp.text
+
+    def test_card_hides_timer_without_range(self, client, z2m_sensor):
+        resp = client.get("/devices/grid")
+        assert "In range (" not in resp.text
+
+    def test_reset_zeroes_counter(self, client, ranged_sensor, session):
+        resp = client.post(f"/devices/{ranged_sensor.id}/reset-timer")
+        assert resp.status_code == 200
+        session.refresh(ranged_sensor)
+        assert ranged_sensor.time_in_range_seconds == 0
+        assert ranged_sensor.time_in_range_updated_at is not None
+
+    def test_reset_404_for_non_sensor(self, client, z2m_plug):
+        resp = client.post(f"/devices/{z2m_plug.id}/reset-timer")
+        assert resp.status_code == 404
+
+
 class TestClimateChart:
     def test_chart_page(self, client, z2m_sensor):
         resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")

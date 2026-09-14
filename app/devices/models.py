@@ -67,6 +67,13 @@ class Device(SQLModel, table=True):
     sensor_temperature: Optional[float] = None  # sensors: ambient °C
     humidity: Optional[float] = None            # sensors: relative humidity %
     battery: Optional[int] = None               # battery-powered devices: %
+    temp_range_low: Optional[float] = None      # sensors: cached "lt" threshold from this sensor's own
+    temp_range_high: Optional[float] = None     # device_state automations on sensor_temperature (the "heat
+    # on"/"heat off" pair) — refreshed on every reading, purely a display label alongside time_in_range below.
+    time_in_range_seconds: int = Field(default=0)  # sensors: cumulative time sensor_temperature has been
+    # within [temp_range_low, temp_range_high], since the last reset. Reset via the card's Reset button.
+    time_in_range_updated_at: Optional[datetime] = None  # sensors: when time_in_range_seconds was last
+    # accumulated up to — used to measure the gap to the next reading, not shown directly.
     has_external_display: bool = Field(default=False)
     # sensor: hardware has a secondary on-screen field that can show a pushed
     # reading (the "EXT1" field on the SNZB-02DR2). Auto-set when the device

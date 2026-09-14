@@ -1,14 +1,14 @@
 import asyncio
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import aiomqtt
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample
+from app.devices.models import Automation, ClimateSample, Device, DeviceType, EnergyDailySummary, Integration, PowerSample
 from app.devices.zigbee_color import hs_to_rgb_hex, mireds_to_pct, pct_to_mireds, rgb_hex_to_hs_brightness
 
 log = logging.getLogger(__name__)
@@ -35,6 +35,41 @@ def _upsert_energy_summary(session: Session, device_id: int, energy_today: float
     if energy_month is not None:
         row.energy_month = energy_month
     session.add(row)
+
+
+def _update_time_in_range(session: Session, device: Device, temperature: float) -> None:
+    """Accumulate device.time_in_range_seconds using the low/high bounds from this
+    sensor's own "heat on" (lt) / "heat off" (gt) device_state automations on
+    sensor_temperature, if both exist — no separate range config, the automations
+    already are the range. Credits the gap since the last reading to "in range"
+    when the new reading falls inside the bounds; a gap over an hour (service
+    restart, long mesh outage) isn't credited, since we can't know what happened
+    to the temperature while nothing was listening."""
+    automations = session.exec(
+        select(Automation).where(
+            Automation.trigger_device_id == device.id,
+            Automation.trigger_field == "sensor_temperature",
+            Automation.trigger_operator.in_(["lt", "gt"]),
+        )
+    ).all()
+    low = high = None
+    for auto in automations:
+        try:
+            value = float(auto.trigger_value)
+        except (TypeError, ValueError):
+            continue
+        if auto.trigger_operator == "lt":
+            low = value
+        elif auto.trigger_operator == "gt":
+            high = value
+    device.temp_range_low = low
+    device.temp_range_high = high
+    now = datetime.utcnow()
+    if low is not None and high is not None and device.time_in_range_updated_at is not None:
+        elapsed = (now - device.time_in_range_updated_at).total_seconds()
+        if 0 < elapsed < 3600 and low <= temperature <= high:
+            device.time_in_range_seconds += int(elapsed)
+    device.time_in_range_updated_at = now
 
 
 def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tuple[int, dict] | None:
@@ -84,6 +119,7 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             _upsert_energy_summary(session, device.id, device.energy_today, device.energy_month)
         if "temperature" in payload:
             device.sensor_temperature = round(float(payload["temperature"]), 1)
+            _update_time_in_range(session, device, device.sensor_temperature)
         if "humidity" in payload:
             device.humidity = round(float(payload["humidity"]), 1)
         if "battery" in payload:

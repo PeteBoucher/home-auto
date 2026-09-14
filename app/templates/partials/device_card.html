@@ -47,6 +47,24 @@
     {% endif %}
   </div>
 
+  {% if device.temp_range_low is not none and device.temp_range_high is not none %}
+  {% set hrs = device.time_in_range_seconds // 3600 %}
+  {% set mins = (device.time_in_range_seconds % 3600) // 60 %}
+  <div class="flex items-center justify-between -mt-1">
+    <span class="flex items-center gap-1 text-xs text-gray-500" title="Cumulative time within the {{ device.temp_range_low }}–{{ device.temp_range_high }}° target range, from this sensor's own heat on/off automations">
+      <i class="bi bi-stopwatch"></i> In range ({{ device.temp_range_low }}–{{ device.temp_range_high }}°): {{ hrs }}h {{ mins }}m
+    </span>
+    <button
+      hx-post="/devices/{{ device.id }}/reset-timer"
+      hx-target="#device-{{ device.id }}"
+      hx-swap="outerHTML"
+      hx-confirm="Reset the in-range timer back to 0?"
+      class="text-gray-400 hover:text-gray-600 transition-colors"
+      title="Reset timer"
+    ><i class="bi bi-arrow-counterclockwise"></i></button>
+  </div>
+  {% endif %}
+
   {% set other_sensors = (devices | selectattr('type.value', 'equalto', 'sensor') | rejectattr('id', 'equalto', device.id) | list) if devices is defined else [] %}
   {% if device.has_external_display and other_sensors %}
   <div class="flex items-center gap-2 -mt-1">

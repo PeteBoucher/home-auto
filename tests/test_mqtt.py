@@ -1,5 +1,6 @@
 """Tests for MQTT state application logic."""
 import asyncio
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -228,6 +229,89 @@ class TestApplyState:
         # _apply_state filters by integration == zigbee2mqtt, so tuya device unchanged
         session.expire(tuya)
         assert session.get(Device, tuya.id).state is False
+
+
+class TestTimeInRange:
+    @pytest.fixture(autouse=True)
+    def _heat_automations(self, session, z2m_sensor):
+        from app.devices.models import Automation, TriggerType
+        session.add(Automation(
+            name="heat on", trigger_type=TriggerType.device_state, trigger_device_id=z2m_sensor.id,
+            trigger_field="sensor_temperature", trigger_operator="lt", trigger_value="45",
+            action_device_id=z2m_sensor.id, action_type="set_state_on",
+        ))
+        session.add(Automation(
+            name="heat off", trigger_type=TriggerType.device_state, trigger_device_id=z2m_sensor.id,
+            trigger_field="sensor_temperature", trigger_operator="gt", trigger_value="50",
+            action_device_id=z2m_sensor.id, action_type="set_state_off",
+        ))
+        session.commit()
+
+    def test_first_reading_only_caches_range_no_time_credited(self, engine, session, z2m_sensor):
+        # No prior reading to measure a gap against yet.
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("bedroom_sensor", {"temperature": 47})
+        d = _refresh(session, z2m_sensor)
+        assert d.temp_range_low == 45
+        assert d.temp_range_high == 50
+        assert d.time_in_range_seconds == 0
+
+    def test_gap_in_range_is_credited(self, engine, session, z2m_sensor):
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        with patch("app.devices.mqtt.engine", engine), patch("app.devices.mqtt.datetime") as mock_dt:
+            mock_dt.utcnow.return_value = t0
+            _apply_state("bedroom_sensor", {"temperature": 47})
+            mock_dt.utcnow.return_value = t0 + timedelta(minutes=10)
+            _apply_state("bedroom_sensor", {"temperature": 48})
+        assert _refresh(session, z2m_sensor).time_in_range_seconds == 600
+
+    def test_gap_out_of_range_is_not_credited(self, engine, session, z2m_sensor):
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        with patch("app.devices.mqtt.engine", engine), patch("app.devices.mqtt.datetime") as mock_dt:
+            mock_dt.utcnow.return_value = t0
+            _apply_state("bedroom_sensor", {"temperature": 47})
+            mock_dt.utcnow.return_value = t0 + timedelta(minutes=10)
+            _apply_state("bedroom_sensor", {"temperature": 41})  # below range — heater just kicked in
+        assert _refresh(session, z2m_sensor).time_in_range_seconds == 0
+
+    def test_long_gap_not_credited(self, engine, session, z2m_sensor):
+        # A gap over an hour (service restart, long outage) isn't credited —
+        # we can't know what the temperature actually did while nothing was listening.
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        with patch("app.devices.mqtt.engine", engine), patch("app.devices.mqtt.datetime") as mock_dt:
+            mock_dt.utcnow.return_value = t0
+            _apply_state("bedroom_sensor", {"temperature": 47})
+            mock_dt.utcnow.return_value = t0 + timedelta(hours=2)
+            _apply_state("bedroom_sensor", {"temperature": 48})
+        assert _refresh(session, z2m_sensor).time_in_range_seconds == 0
+
+    def test_accumulates_across_multiple_readings(self, engine, session, z2m_sensor):
+        t0 = datetime(2026, 1, 1, 12, 0, 0)
+        with patch("app.devices.mqtt.engine", engine), patch("app.devices.mqtt.datetime") as mock_dt:
+            mock_dt.utcnow.return_value = t0
+            _apply_state("bedroom_sensor", {"temperature": 47})
+            mock_dt.utcnow.return_value = t0 + timedelta(minutes=5)
+            _apply_state("bedroom_sensor", {"temperature": 48})
+            mock_dt.utcnow.return_value = t0 + timedelta(minutes=15)
+            _apply_state("bedroom_sensor", {"temperature": 49})
+        assert _refresh(session, z2m_sensor).time_in_range_seconds == 900
+
+    def test_no_range_automations_leaves_range_unset(self, engine, session):
+        # A sensor with no linked heat on/off automations (e.g. Indoor Climate)
+        # should not show a range or accumulate anything.
+        other = Device(
+            name="Indoor Climate", device_id="indoor_climate", type=DeviceType.sensor,
+            integration=Integration.zigbee2mqtt, online=True,
+        )
+        session.add(other)
+        session.commit()
+        session.refresh(other)
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("indoor_climate", {"temperature": 21.0})
+        d = _refresh(session, other)
+        assert d.temp_range_low is None
+        assert d.temp_range_high is None
+        assert d.time_in_range_seconds == 0
 
 
 class TestGetZigbeeBulbs:

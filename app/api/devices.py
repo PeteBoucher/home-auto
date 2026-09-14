@@ -518,6 +518,21 @@ async def display_source_route(device_id: int, request: Request, session: Sessio
     return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule, "devices": devices})
 
 
+@router.post("/{device_id}/reset-timer", response_class=HTMLResponse)
+async def reset_time_in_range(device_id: int, request: Request, session: SessionDep):
+    device = session.get(Device, device_id)
+    if not device or device.type != DeviceType.sensor:
+        raise HTTPException(status_code=404)
+    device.time_in_range_seconds = 0
+    device.time_in_range_updated_at = datetime.utcnow()
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    devices = list(session.exec(select(Device)).all())
+    schedule = _get_schedule(device.id, session)
+    return templates.TemplateResponse(request, "partials/device_card.html", {"device": device, "schedule": schedule, "devices": devices})
+
+
 @router.get("/{device_id}/climate-chart", response_class=HTMLResponse)
 async def climate_chart_page(device_id: int, request: Request, session: SessionDep):
     device = session.get(Device, device_id)
