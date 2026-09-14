@@ -74,6 +74,11 @@ class Device(SQLModel, table=True):
     # within [temp_range_low, temp_range_high], since the last reset. Reset via the card's Reset button.
     time_in_range_updated_at: Optional[datetime] = None  # sensors: when time_in_range_seconds was last
     # accumulated up to — used to measure the gap to the next reading, not shown directly.
+    climate_widget_cutoff: Optional[datetime] = None  # sensors: ClimateSample rows at/after this timestamp
+    # are excluded from the dashboard's climate widget (app/api/climate.py) — set when a sensor is repurposed
+    # (e.g. an outdoor sensor moved into the filament dryer box) so its old room-labeled history stays visible
+    # there but its new, differently-scaled readings don't get folded into that room's line. Per-device chart
+    # (/devices/{id}/climate-chart) is unaffected — it always shows the sensor's full history.
     has_external_display: bool = Field(default=False)
     # sensor: hardware has a secondary on-screen field that can show a pushed
     # reading (the "EXT1" field on the SNZB-02DR2). Auto-set when the device

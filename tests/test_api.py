@@ -432,6 +432,20 @@ class TestClimateChart:
         assert data["temperature"][0] == 21.5
         assert data["humidity"][0] == 55.2
 
+    def test_target_range_null_without_range_automations(self, client, z2m_sensor):
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")
+        assert "low: null" in resp.text
+        assert "high: null" in resp.text
+
+    def test_target_range_populated_from_cached_device_fields(self, client, z2m_sensor, session):
+        z2m_sensor.temp_range_low = 45
+        z2m_sensor.temp_range_high = 50
+        session.add(z2m_sensor)
+        session.commit()
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")
+        assert "low: 45.0" in resp.text
+        assert "high: 50.0" in resp.text
+
 
 class TestClimateWidget:
     def test_empty_returns_empty_dict(self, client):
@@ -552,6 +566,50 @@ class TestClimateWidget:
 
         resp = client.get("/climate/data")
         assert resp.json()["Living room"]["humidity"] == [50.0]
+
+    def test_climate_widget_cutoff_excludes_readings_at_or_after_it(self, client, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        cutoff = datetime(2026, 9, 14, 13, 45, 19)
+        device = Device(
+            name="Filament dryer sensor", room="Study", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_widget_cutoff=cutoff,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=18.0, timestamp=cutoff - timedelta(hours=1)))
+        session.add(ClimateSample(device_id=device.id, temperature=47.0, timestamp=cutoff + timedelta(hours=1)))
+        session.commit()
+
+        resp = client.get("/climate/data?hours=168")
+        assert resp.json()["Study"]["temperature"] == [18.0]
+
+    def test_climate_widget_cutoff_only_affects_its_own_device(self, client, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        cutoff = datetime(2026, 9, 14, 13, 45, 19)
+        repurposed = Device(
+            name="Filament dryer sensor", room="Study", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_widget_cutoff=cutoff,
+        )
+        other = Device(
+            name="Study desk sensor", room="Study", device_id="s2",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+        )
+        session.add(repurposed)
+        session.add(other)
+        session.commit()
+        session.refresh(repurposed)
+        session.refresh(other)
+        session.add(ClimateSample(device_id=repurposed.id, temperature=47.0, timestamp=cutoff + timedelta(hours=1)))
+        session.add(ClimateSample(device_id=other.id, temperature=22.0, timestamp=cutoff + timedelta(hours=1)))
+        session.commit()
+
+        resp = client.get("/climate/data?hours=168")
+        assert resp.json()["Study"]["temperature"] == [22.0]
 
     def test_ac_humidity_is_null(self, client, session):
         from datetime import datetime

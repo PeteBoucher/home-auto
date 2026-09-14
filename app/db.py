@@ -62,6 +62,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN temp_range_high REAL",
             "ALTER TABLE device ADD COLUMN time_in_range_seconds INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE device ADD COLUMN time_in_range_updated_at TEXT",
+            "ALTER TABLE device ADD COLUMN climate_widget_cutoff TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

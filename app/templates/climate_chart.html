@@ -44,6 +44,42 @@
     },
   ];
 
+  // Target range (this sensor's own "heat on"/"heat off" automation
+  // thresholds, cached on the device — null for a sensor with no such pair).
+  const TARGET_RANGE = {
+    low: {{ device.temp_range_low if device.temp_range_low is not none else 'null' }},
+    high: {{ device.temp_range_high if device.temp_range_high is not none else 'null' }},
+  };
+
+  const targetRangePlugin = {
+    id: 'targetRange',
+    beforeDatasetsDraw(c) {
+      if (c.canvas.id !== 'temp-chart' || TARGET_RANGE.low == null || TARGET_RANGE.high == null) return;
+      const { ctx, chartArea, scales } = c;
+      const yLow = scales.y.getPixelForValue(TARGET_RANGE.low);
+      const yHigh = scales.y.getPixelForValue(TARGET_RANGE.high);
+      ctx.save();
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+      ctx.fillRect(chartArea.left, yHigh, chartArea.right - chartArea.left, yLow - yHigh);
+      ctx.strokeStyle = '#10B981';
+      ctx.setLineDash([4, 3]);
+      ctx.lineWidth = 1;
+      [yLow, yHigh].forEach(y => {
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, y);
+        ctx.lineTo(chartArea.right, y);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#047857';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillText('target range', chartArea.left + 4, yHigh - 4);
+      ctx.restore();
+    },
+  };
+  Chart.register(targetRangePlugin);
+
   function makeChart(canvasId, label, color, unit, yAxis, points, hours) {
     return new Chart(document.getElementById(canvasId), {
       type: 'line',
