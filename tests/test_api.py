@@ -591,7 +591,9 @@ class TestClimateWidget:
     def test_climate_widget_cutoff_excludes_readings_at_or_after_it(self, client, session):
         from datetime import datetime, timedelta
         from app.devices.models import ClimateSample, Device, DeviceType, Integration
-        cutoff = datetime(2026, 9, 14, 13, 45, 19)
+        # Relative to now (not a fixed date) — a hardcoded date eventually falls
+        # outside the hours=168 lookback window as real time moves past it.
+        cutoff = datetime.utcnow() - timedelta(days=3)
         device = Device(
             name="Filament dryer sensor", room="Study", device_id="s1",
             type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
@@ -610,7 +612,8 @@ class TestClimateWidget:
     def test_climate_widget_cutoff_only_affects_its_own_device(self, client, session):
         from datetime import datetime, timedelta
         from app.devices.models import ClimateSample, Device, DeviceType, Integration
-        cutoff = datetime(2026, 9, 14, 13, 45, 19)
+        # Relative to now (not a fixed date) — see comment in the test above.
+        cutoff = datetime.utcnow() - timedelta(days=3)
         repurposed = Device(
             name="Filament dryer sensor", room="Study", device_id="s1",
             type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
