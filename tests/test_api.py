@@ -43,6 +43,27 @@ class TestDashboard:
         resp = client.get("/")
         assert "climate-widget-chart" in resp.text
 
+    def test_cards_carry_sort_data_attributes(self, client, session, tuya_bulb, z2m_plug):
+        tuya_bulb.room = "Lounge"
+        session.add(tuya_bulb)
+        session.commit()
+        resp = client.get("/")
+        assert f'data-order="{tuya_bulb.id}"' in resp.text
+        assert 'data-room="Lounge"' in resp.text
+        assert 'data-type="bulb"' in resp.text
+        assert 'data-name="Test Bulb"' in resp.text
+        # No room set — attribute is present but empty, not omitted, so JS sees a stable value.
+        assert f'data-order="{z2m_plug.id}"' in resp.text
+        assert 'data-room=""' in resp.text
+
+    def test_sort_control_present_with_devices(self, client, tuya_bulb):
+        resp = client.get("/")
+        assert 'id="dashboard-sort"' in resp.text
+
+    def test_sort_control_absent_when_no_devices(self, client):
+        resp = client.get("/")
+        assert 'id="dashboard-sort"' not in resp.text
+
 
 class TestTuyaCommands:
     def test_toggle_on(self, client, tuya_bulb):

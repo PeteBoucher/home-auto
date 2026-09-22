@@ -1,5 +1,7 @@
 {% set next_state = "false" if device.state else "true" %}
-<div id="device-{{ device.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4">
+<div id="device-{{ device.id }}" class="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-4"
+     data-sortable="true" data-order="{{ device.id }}" data-room="{{ device.room or '' }}"
+     data-type="{{ device.type.value }}" data-name="{{ device.name }}">
 
   <div class="flex items-center justify-between gap-4">
     <div id="device-{{ device.id }}-name-preserve" hx-preserve="true">

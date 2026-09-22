@@ -10,6 +10,14 @@
   </a>
 </div>
 {% else %}
+<div class="flex items-center justify-end gap-2 mb-4">
+  <label for="dashboard-sort" class="text-xs text-gray-400">Sort by</label>
+  <select id="dashboard-sort" class="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white text-gray-600">
+    <option value="default">Default</option>
+    <option value="room">Room</option>
+    <option value="type">Type</option>
+  </select>
+</div>
 <div id="device-grid"
      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
      hx-get="/devices/grid"
@@ -24,6 +32,70 @@
     {% include "partials/device_card.html" %}
   {% endfor %}
 </div>
+<script>
+(function() {
+  var KEY = "dashboardSort";
+  var select = document.getElementById("dashboard-sort");
+  var container = document.getElementById("device-grid");
+  var TYPE_ORDER = ["plug", "switch", "bulb", "ac", "tv", "sensor"];
+
+  function getSort() {
+    try { return localStorage.getItem(KEY) || "default"; } catch (e) { return "default"; }
+  }
+  function setSort(mode) {
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+  }
+
+  function typeRank(t) {
+    var i = TYPE_ORDER.indexOf(t);
+    return i === -1 ? TYPE_ORDER.length : i;
+  }
+
+  function sortChildren(mode) {
+    if (!container) return;
+    var items = Array.prototype.filter.call(container.children, function(el) {
+      return el.dataset.sortable === "true";
+    });
+    if (mode === "room") {
+      items.sort(function(a, b) {
+        var ra = a.dataset.room || "￿", rb = b.dataset.room || "￿";
+        if (ra !== rb) return ra.localeCompare(rb);
+        return a.dataset.name.localeCompare(b.dataset.name);
+      });
+    } else if (mode === "type") {
+      items.sort(function(a, b) {
+        var ta = typeRank(a.dataset.type), tb = typeRank(b.dataset.type);
+        if (ta !== tb) return ta - tb;
+        return a.dataset.name.localeCompare(b.dataset.name);
+      });
+    } else {
+      items.sort(function(a, b) {
+        return (parseInt(a.dataset.order, 10) || 0) - (parseInt(b.dataset.order, 10) || 0);
+      });
+    }
+    items.forEach(function(el) { container.appendChild(el); });
+  }
+
+  function applySort() {
+    var mode = getSort();
+    if (select) select.value = mode;
+    sortChildren(mode);
+  }
+
+  if (select) {
+    select.addEventListener("change", function() {
+      setSort(select.value);
+      sortChildren(select.value);
+    });
+  }
+
+  document.body.addEventListener("htmx:afterSwap", function(evt) {
+    if (evt.target && evt.target.id === "device-grid") applySort();
+  });
+
+  applySort();
+})();
+</script>
 {% endif %}
 
 {% if roachcam_url %}
