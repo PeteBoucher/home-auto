@@ -1,6 +1,6 @@
-{% set _icons  = {"plug": "bi-plug-fill",      "bulb": "bi-lightbulb-fill", "ac": "bi-snow"} %}
-{% set _colors = {"plug": "bg-orange-100 text-orange-500", "bulb": "bg-yellow-100 text-yellow-500", "ac": "bg-sky-100 text-sky-500"} %}
-{% set _labels = {"plug": "Socket", "bulb": "Bulb", "ac": "Air conditioner"} %}
+{% set _icons  = {"plug": "bi-plug-fill",      "bulb": "bi-lightbulb-fill", "ac": "bi-snow", "sensor": "bi-thermometer-half", "switch": "bi-toggle2-on"} %}
+{% set _colors = {"plug": "bg-orange-100 text-orange-500", "bulb": "bg-yellow-100 text-yellow-500", "ac": "bg-sky-100 text-sky-500", "sensor": "bg-teal-100 text-teal-500", "switch": "bg-indigo-100 text-indigo-500"} %}
+{% set _labels = {"plug": "Socket", "bulb": "Bulb", "ac": "Air conditioner", "sensor": "Sensor", "switch": "Switch"} %}
 <div id="device-{{ device.id }}-name" class="flex items-center gap-2 min-w-0">
   <div class="min-w-0">
     <h2 class="font-semibold text-gray-800 truncate">{{ device.name }}</h2>

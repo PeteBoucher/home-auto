@@ -34,6 +34,7 @@ class TestDashboard:
         assert "Bedroom Sensor" in resp.text
         assert "21.5°" in resp.text
         assert "55.2%" in resp.text
+        assert "bi-thermometer-half" in resp.text
 
     def test_climate_widget_hidden_without_climate_devices(self, client, tuya_bulb):
         resp = client.get("/")
@@ -195,6 +196,10 @@ class TestSwitchDeviceType:
         assert "Power</p>" not in resp.text
         assert "Dimmable" not in resp.text
         assert "Louvre" not in resp.text
+
+    def test_card_shows_switch_icon(self, client, z2m_switch):
+        resp = client.get("/devices/grid")
+        assert "bi-toggle2-on" in resp.text
 
     def test_card_still_gets_a_schedule_section(self, client, z2m_switch):
         resp = client.get("/devices/grid")
