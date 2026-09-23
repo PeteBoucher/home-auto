@@ -834,7 +834,37 @@ class TestGroups:
             resp = client.post(f"/groups/{group.id}/command", data={"state": "true"})
         assert resp.status_code == 200
         assert "On" in resp.text
-        mock_pub.assert_awaited_once()
+
+    def test_group_command_pushes_member_cards_oob(self, client, z2m_bulb, tuya_bulb, session):
+        # Member cards live elsewhere in the dashboard grid, outside the group
+        # card that's the hx-target — they must arrive as hx-swap-oob div's in
+        # the same response so the UI reflects the new state immediately,
+        # rather than waiting for the grid's own 30s poll.
+        from app.devices.models import DeviceGroup
+        with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
+             patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
+            client.post(
+                "/groups",
+                data={"name": "Lounge & Dining", "device_ids": [str(z2m_bulb.id), str(tuya_bulb.id)]},
+            )
+        group = session.exec(select(DeviceGroup)).first()
+
+        with patch("app.services.groups.mqtt_client.publish", new=AsyncMock()), \
+             patch("app.services.device_commands.tuya_client.send_command", new=AsyncMock()), \
+             patch("app.services.device_commands.tuya_client.get_state", new=AsyncMock(return_value=_TUYA_STATE_ON)):
+            resp = client.post(f"/groups/{group.id}/command", data={"state": "true"})
+
+        assert resp.status_code == 200
+        assert f'id="device-{z2m_bulb.id}" hx-swap-oob="true"' in resp.text
+        assert f'id="device-{tuya_bulb.id}" hx-swap-oob="true"' in resp.text
+        # Both member cards should already show the "on" styling, not just the
+        # group card — i.e. they reflect the new state in this same response,
+        # rather than only once the grid's next 30s poll comes around.
+        assert resp.text.count("bg-green-500 hover:bg-green-600 text-white") == 3  # group + 2 members
+        session.refresh(z2m_bulb)
+        session.refresh(tuya_bulb)
+        assert z2m_bulb.state is True
+        assert tuya_bulb.state is True
 
     def test_delete_group_removes_it(self, client, z2m_bulb, session):
         with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \

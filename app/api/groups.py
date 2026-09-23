@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import select
 
+from app.api.devices import _get_schedule
 from app.db import SessionDep
 from app.devices.models import Device, DeviceGroup, Integration
 from app.services.groups import create_group, delete_group, send_group_command, set_group_members
@@ -81,4 +82,23 @@ async def group_command_route(group_id: int, request: Request, session: SessionD
     await send_group_command(session, group, command)
     session.refresh(group)
     members = list(session.exec(select(Device).where(Device.group_id == group.id)).all())
-    return templates.TemplateResponse(request, "partials/group_card.html", {"group": group, "members": members})
+
+    # The group card itself is the hx-target and swaps normally, but member
+    # device cards live elsewhere in the dashboard grid and would otherwise
+    # sit stale until the grid's own 30s poll (index.html hx-trigger="every
+    # 30s") — push their already-committed state out now via OOB swaps so
+    # they update immediately instead of lagging behind the group.
+    card_template = templates.get_template("partials/device_card.html")
+    group_html = templates.get_template("partials/group_card.html").render(
+        {"request": request, "group": group, "members": members}
+    )
+    member_html = "".join(
+        card_template.render({
+            "request": request,
+            "device": m,
+            "schedule": _get_schedule(m.id, session),
+            "oob": True,
+        })
+        for m in members
+    )
+    return HTMLResponse(group_html + member_html)
