@@ -472,6 +472,54 @@ class TestClimateChart:
         assert "low: 45.0" in resp.text
         assert "high: 50.0" in resp.text
 
+    def test_daily_empty(self, client, z2m_sensor):
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/daily")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "dates": [], "temp_mean": [], "temp_min": [], "temp_max": [],
+            "humidity_mean": [], "humidity_min": [], "humidity_max": [],
+        }
+
+    def test_daily_returns_rows_within_window_with_computed_mean(self, client, z2m_sensor, session):
+        # Dates relative to "now", not hardcoded — see the guardrail on
+        # hardcoded absolute dates in time-window tests.
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateDailySummary
+        today = datetime.utcnow().date()
+        outside_window = (today - timedelta(days=800)).isoformat()
+        inside_window = (today - timedelta(days=5)).isoformat()
+        session.add(ClimateDailySummary(
+            device_id=z2m_sensor.id, date=outside_window,
+            temp_sum=100.0, temp_count=5, temp_min=18.0, temp_max=24.0,
+        ))
+        session.add(ClimateDailySummary(
+            device_id=z2m_sensor.id, date=inside_window,
+            temp_sum=63.0, temp_count=3, temp_min=20.0, temp_max=22.0,
+            humidity_sum=150.0, humidity_count=3, humidity_min=48.0, humidity_max=52.0,
+        ))
+        session.commit()
+
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/daily?days=365")
+        data = resp.json()
+        assert data["dates"] == [inside_window]
+        assert data["temp_mean"] == [21.0]
+        assert data["temp_min"] == [20.0]
+        assert data["temp_max"] == [22.0]
+        assert data["humidity_mean"] == [50.0]
+
+    def test_daily_null_mean_when_no_readings_for_metric(self, client, z2m_sensor, session):
+        from datetime import datetime
+        from app.devices.models import ClimateDailySummary
+        session.add(ClimateDailySummary(
+            device_id=z2m_sensor.id, date=datetime.utcnow().date().isoformat(),
+            temp_sum=42.0, temp_count=2, temp_min=20.0, temp_max=22.0,
+        ))
+        session.commit()
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/daily")
+        data = resp.json()
+        assert data["humidity_mean"] == [None]
+        assert data["humidity_min"] == [None]
+
 
 class TestClimateWidget:
     def test_empty_returns_empty_dict(self, client):
@@ -1058,6 +1106,39 @@ class TestAcChart:
         monkeypatch.delenv("LON", raising=False)
         resp = client.get(f"/devices/{hon_device.id}/ac-chart/data")
         assert resp.json()["sun_events"] == []
+
+    def test_daily_empty(self, client, hon_device):
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/daily")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "dates": [], "indoor_mean": [], "indoor_min": [], "indoor_max": [],
+            "outdoor_mean": [], "outdoor_min": [], "outdoor_max": [],
+        }
+
+    def test_daily_returns_rows_within_window_with_computed_mean(self, client, hon_device, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import AcDailySummary
+        today = datetime.utcnow().date()
+        outside_window = (today - timedelta(days=800)).isoformat()
+        inside_window = (today - timedelta(days=5)).isoformat()
+        session.add(AcDailySummary(
+            device_id=hon_device.id, date=outside_window,
+            indoor_sum=100.0, indoor_count=5, indoor_min=18.0, indoor_max=24.0,
+        ))
+        session.add(AcDailySummary(
+            device_id=hon_device.id, date=inside_window,
+            indoor_sum=69.0, indoor_count=3, indoor_min=22.0, indoor_max=24.0,
+            outdoor_sum=90.0, outdoor_count=3, outdoor_min=28.0, outdoor_max=32.0,
+        ))
+        session.commit()
+
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart/daily?days=365")
+        data = resp.json()
+        assert data["dates"] == [inside_window]
+        assert data["indoor_mean"] == [23.0]
+        assert data["indoor_min"] == [22.0]
+        assert data["indoor_max"] == [24.0]
+        assert data["outdoor_mean"] == [30.0]
 
     def test_data_sun_events_present_with_lat_lon(self, client, hon_device, monkeypatch):
         from datetime import datetime

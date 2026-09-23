@@ -10,7 +10,8 @@ from sqlmodel import Session, select
 
 from app.db import SessionDep
 from app.devices.models import (
-    AcSample, ClimateSample, Device, DeviceGroup, DeviceType, EnergyDailySummary, Integration, PowerSample, Schedule,
+    AcDailySummary, AcSample, ClimateDailySummary, ClimateSample, Device, DeviceGroup, DeviceType,
+    EnergyDailySummary, Integration, PowerSample, Schedule,
 )
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
@@ -556,6 +557,29 @@ async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Q
     }
 
 
+@router.get("/{device_id}/climate-chart/daily")
+async def climate_chart_daily(device_id: int, session: SessionDep, days: int = Query(default=90, ge=1, le=730)):
+    """Daily mean/min/max temperature+humidity, rolled up from raw ClimateSample
+    rows once they age past the 7-day retention that /climate-chart/data reads
+    from (services/history_rollup.py). Kept indefinitely, so this is the only
+    place a sensor's history beyond 7 days is visible."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    rows = session.exec(
+        select(ClimateDailySummary)
+        .where(ClimateDailySummary.device_id == device_id, ClimateDailySummary.date >= cutoff)
+        .order_by(ClimateDailySummary.date)
+    ).all()
+    return {
+        "dates": [r.date for r in rows],
+        "temp_mean": [round(r.temp_sum / r.temp_count, 2) if r.temp_count else None for r in rows],
+        "temp_min": [r.temp_min for r in rows],
+        "temp_max": [r.temp_max for r in rows],
+        "humidity_mean": [round(r.humidity_sum / r.humidity_count, 2) if r.humidity_count else None for r in rows],
+        "humidity_min": [r.humidity_min for r in rows],
+        "humidity_max": [r.humidity_max for r in rows],
+    }
+
+
 @router.get("/{device_id}/ac-chart", response_class=HTMLResponse)
 async def ac_chart_page(device_id: int, request: Request, session: SessionDep):
     device = session.get(Device, device_id)
@@ -593,6 +617,28 @@ async def ac_chart_data(device_id: int, session: SessionDep, hours: int = Query(
         "outdoor_temp": [s.outdoor_temp for s in samples],
         "ac_state": [s.ac_state for s in samples],
         "sun_events": sun_events,
+    }
+
+
+@router.get("/{device_id}/ac-chart/daily")
+async def ac_chart_daily(device_id: int, session: SessionDep, days: int = Query(default=90, ge=1, le=730)):
+    """Daily mean/min/max indoor+outdoor temperature, rolled up from raw
+    AcSample rows once they age past the 7-day retention that /ac-chart/data
+    reads from (services/history_rollup.py). Kept indefinitely."""
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    rows = session.exec(
+        select(AcDailySummary)
+        .where(AcDailySummary.device_id == device_id, AcDailySummary.date >= cutoff)
+        .order_by(AcDailySummary.date)
+    ).all()
+    return {
+        "dates": [r.date for r in rows],
+        "indoor_mean": [round(r.indoor_sum / r.indoor_count, 2) if r.indoor_count else None for r in rows],
+        "indoor_min": [r.indoor_min for r in rows],
+        "indoor_max": [r.indoor_max for r in rows],
+        "outdoor_mean": [round(r.outdoor_sum / r.outdoor_count, 2) if r.outdoor_count else None for r in rows],
+        "outdoor_min": [r.outdoor_min for r in rows],
+        "outdoor_max": [r.outdoor_max for r in rows],
     }
 
 

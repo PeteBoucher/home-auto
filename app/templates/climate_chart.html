@@ -22,9 +22,29 @@
     <canvas id="temp-chart"></canvas>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm p-5">
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-8">
     <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Humidity (%)</p>
     <canvas id="humid-chart"></canvas>
+  </div>
+
+  <h2 class="text-sm font-semibold text-gray-600 mb-3">Daily history</h2>
+  <div class="flex gap-2 mb-4">
+    {% for d, label in [(30, "30d"), (90, "90d"), (365, "1y")] %}
+    <button onclick="loadDaily({{ d }})" id="daily-btn-{{ d }}"
+      class="px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Temperature — daily mean, min–max band (°C)</p>
+    <canvas id="temp-daily-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Humidity — daily mean, min–max band (%)</p>
+    <canvas id="humid-daily-chart"></canvas>
   </div>
 </div>
 
@@ -158,6 +178,95 @@
     });
   }
 
+  // Daily history: a min–max band (shaded, no border) with the mean drawn on
+  // top as a solid line — one hue per metric (sequential: light band, darker
+  // mean line) rather than three separate categorical colors, since min/mean/max
+  // are one magnitude, not three identities.
+  function makeBandChart(canvasId, label, color, unit, meanPts, minPts, maxPts) {
+    return new Chart(document.getElementById(canvasId), {
+      type: 'line',
+      data: {
+        datasets: [
+          { label: 'Max', data: maxPts, borderColor: 'transparent', pointRadius: 0, fill: false },
+          {
+            label: 'Range (min–max)', data: minPts, borderColor: 'transparent', pointRadius: 0,
+            backgroundColor: color + '25', fill: '-1',
+          },
+          {
+            label: 'Mean', data: meanPts, borderColor: color, backgroundColor: 'transparent',
+            borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: {
+          legend: {
+            display: true, position: 'top', labels: {
+              color: '#6B7280', font: { size: 11 }, boxHeight: 8,
+              filter: item => item.text !== 'Max',
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { unit: 'day', tooltipFormat: 'dd MMM yyyy', displayFormats: { day: 'dd MMM', month: 'MMM yyyy' } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+          y: {
+            title: { display: true, text: unit, color: '#9CA3AF', font: { size: 11 } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+        },
+      },
+    });
+  }
+
+  async function loadDaily(days) {
+    [30, 90, 365].forEach(d => {
+      const btn = document.getElementById('daily-btn-' + d);
+      btn.className = d === days
+        ? 'px-3 py-1 text-sm rounded-lg bg-blue-600 text-white transition-colors'
+        : 'px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors';
+    });
+
+    const resp = await fetch('/devices/{{ device.id }}/climate-chart/daily?days=' + days);
+    const data = await resp.json();
+
+    ['temp-daily-chart', 'humid-daily-chart'].forEach((id, idx) => {
+      if (data.dates.length === 0) {
+        const canvas = document.getElementById(id);
+        const ctx = canvas.getContext('2d');
+        canvas.height = 60;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#9CA3AF';
+        ctx.font = '13px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('No history older than 7 days yet', canvas.width / 2, 36);
+      }
+    });
+    if (data.dates.length === 0) return;
+
+    const dpts = key => data.dates.map((d, i) => ({ x: new Date(d), y: data[key][i] }));
+
+    if (charts['temp-daily-chart']) charts['temp-daily-chart'].destroy();
+    charts['temp-daily-chart'] = makeBandChart(
+      'temp-daily-chart', 'Temperature', '#F59E0B', '°C',
+      dpts('temp_mean'), dpts('temp_min'), dpts('temp_max'),
+    );
+
+    if (charts['humid-daily-chart']) charts['humid-daily-chart'].destroy();
+    charts['humid-daily-chart'] = makeBandChart(
+      'humid-daily-chart', 'Humidity', '#3B82F6', '%',
+      dpts('humidity_mean'), dpts('humidity_min'), dpts('humidity_max'),
+    );
+  }
+
   loadChart(6);
+  loadDaily(90);
 </script>
 {% endblock %}

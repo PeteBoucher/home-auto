@@ -17,9 +17,24 @@
     {% endfor %}
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm p-5">
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-8">
     <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Temperature (°C)</p>
     <canvas id="ac-temp-chart"></canvas>
+  </div>
+
+  <h2 class="text-sm font-semibold text-gray-600 mb-3">Daily history</h2>
+  <div class="flex gap-2 mb-4">
+    {% for d, label in [(30, "30d"), (90, "90d"), (365, "1y")] %}
+    <button onclick="loadDaily({{ d }})" id="daily-btn-{{ d }}"
+      class="px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Indoor/outdoor — daily mean, min–max band (°C)</p>
+    <canvas id="ac-daily-chart"></canvas>
   </div>
 </div>
 
@@ -168,6 +183,88 @@
     chart.update('none');
   }
 
+  // Daily history: a min–max band per metric (indoor/outdoor), mean drawn on
+  // top — one hue per metric, matching the raw chart's indoor/outdoor colors,
+  // rather than treating min/mean/max as three separate identities.
+  let dailyChart;
+
+  function bandDatasets(label, color, meanPts, minPts, maxPts) {
+    return [
+      { label: label + ' max', data: maxPts, borderColor: 'transparent', pointRadius: 0, fill: false },
+      {
+        label: label + ' range', data: minPts, borderColor: 'transparent', pointRadius: 0,
+        backgroundColor: color + '25', fill: '-1',
+      },
+      {
+        label, data: meanPts, borderColor: color, backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 0, tension: 0.2, fill: false,
+      },
+    ];
+  }
+
+  async function loadDaily(days) {
+    [30, 90, 365].forEach(d => {
+      const btn = document.getElementById('daily-btn-' + d);
+      btn.className = d === days
+        ? 'px-3 py-1 text-sm rounded-lg bg-blue-600 text-white transition-colors'
+        : 'px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors';
+    });
+
+    const resp = await fetch('/devices/{{ device.id }}/ac-chart/daily?days=' + days);
+    const data = await resp.json();
+
+    const canvas = document.getElementById('ac-daily-chart');
+    if (data.dates.length === 0) {
+      const ctx = canvas.getContext('2d');
+      canvas.height = 60;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#9CA3AF';
+      ctx.font = '13px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('No history older than 7 days yet', canvas.width / 2, 36);
+      return;
+    }
+
+    const dpts = key => data.dates.map((d, i) => ({ x: new Date(d), y: data[key][i] }));
+
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(canvas, {
+      type: 'line',
+      data: {
+        datasets: [
+          ...bandDatasets('Indoor', '#3B82F6', dpts('indoor_mean'), dpts('indoor_min'), dpts('indoor_max')),
+          ...bandDatasets('Outdoor', '#10B981', dpts('outdoor_mean'), dpts('outdoor_min'), dpts('outdoor_max')),
+        ],
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: {
+          legend: {
+            display: true, position: 'top', labels: {
+              color: '#6B7280', font: { size: 11 }, boxHeight: 8,
+              filter: item => item.text === 'Indoor' || item.text === 'Outdoor',
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { unit: 'day', tooltipFormat: 'dd MMM yyyy', displayFormats: { day: 'dd MMM', month: 'MMM yyyy' } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+          y: {
+            title: { display: true, text: '°C', color: '#9CA3AF', font: { size: 11 } },
+            grid: { color: '#F3F4F6' },
+            ticks: { color: '#9CA3AF', font: { size: 11 } },
+          },
+        },
+      },
+    });
+  }
+
   loadChart(6);
+  loadDaily(90);
 </script>
 {% endblock %}

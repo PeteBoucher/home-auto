@@ -194,3 +194,49 @@ class EnergyDailySummary(SQLModel, table=True):
     date: str  # "YYYY-MM-DD", local calendar date
     energy_today: Optional[float] = None
     energy_month: Optional[float] = None
+
+
+class ClimateDailySummary(SQLModel, table=True):
+    """One row per sensor per calendar day, kept indefinitely — same
+    keep-the-rollup-forever/prune-the-raw-samples split as EnergyDailySummary
+    does for PowerSample. Built by services/history_rollup.py from
+    ClimateSample rows once they age out of the 7-day raw retention window.
+
+    Stored as sum+count rather than a precomputed mean so the rollup can be
+    re-run against the same day more than once (e.g. a service restart shifts
+    the nightly job's schedule mid-day, splitting one day's raw rows across
+    two runs) and just add the second batch's contribution on top of the
+    first's, instead of one run's aggregate silently overwriting the other's.
+    Min/max merge the same way, via plain min()/max() against the prior value.
+    """
+    __table_args__ = (UniqueConstraint("device_id", "date", name="uq_climate_daily_device_date"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    date: str  # "YYYY-MM-DD", UTC calendar date (matches ClimateSample.timestamp)
+    temp_sum: float = 0.0
+    temp_count: int = 0
+    temp_min: Optional[float] = None
+    temp_max: Optional[float] = None
+    humidity_sum: float = 0.0
+    humidity_count: int = 0
+    humidity_min: Optional[float] = None
+    humidity_max: Optional[float] = None
+
+
+class AcDailySummary(SQLModel, table=True):
+    """Same shape and merge behavior as ClimateDailySummary, rolled up from
+    AcSample's indoor_temp/outdoor_temp once they age out of raw retention."""
+    __table_args__ = (UniqueConstraint("device_id", "date", name="uq_ac_daily_device_date"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    device_id: int = Field(foreign_key="device.id", index=True)
+    date: str
+    indoor_sum: float = 0.0
+    indoor_count: int = 0
+    indoor_min: Optional[float] = None
+    indoor_max: Optional[float] = None
+    outdoor_sum: float = 0.0
+    outdoor_count: int = 0
+    outdoor_min: Optional[float] = None
+    outdoor_max: Optional[float] = None

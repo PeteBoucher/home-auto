@@ -31,12 +31,19 @@ from app.services.scheduler import scheduler, init_schedules
 from app.services.automation_engine import load_time_automations, refresh_sun_jobs
 from app.services.tuya_poller import poll_tuya_devices
 from app.services.hon_poller import poll_hon_devices
+from app.services.history_rollup import rollup_ac_samples, rollup_climate_samples
 
 def _prune_power_samples() -> None:
     cutoff = datetime.utcnow() - timedelta(days=7)
     with Session(engine) as session:
         session.exec(delete(PowerSample).where(PowerSample.timestamp < cutoff))
         session.commit()
+
+
+def _rollup_climate_history() -> None:
+    with Session(engine) as session:
+        rollup_climate_samples(session)
+        rollup_ac_samples(session)
 
 
 @asynccontextmanager
@@ -49,6 +56,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(poll_tuya_devices, "interval", seconds=30, next_run_time=datetime.now())
     scheduler.add_job(poll_hon_devices, "interval", seconds=60, next_run_time=datetime.now())
     scheduler.add_job(_prune_power_samples, "interval", hours=24)
+    scheduler.add_job(_rollup_climate_history, "interval", hours=24)
     scheduler.add_job(refresh_sun_jobs, "interval", hours=24, next_run_time=datetime.now())
     scheduler.start()
     init_schedules()
