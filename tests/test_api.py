@@ -436,6 +436,14 @@ class TestClimateChart:
         resp = client.get(f"/devices/{z2m_plug.id}/climate-chart")
         assert resp.status_code == 404
 
+    def test_chart_page_wires_up_live_refresh_on_short_windows(self, client, z2m_sensor):
+        # 1h/6h buttons drive the auto-refresh loop; 24h/7d shouldn't poll.
+        resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart")
+        assert "selectHours(1)" in resp.text
+        assert "selectHours(6)" in resp.text
+        assert "hours === 1 || hours === 6" in resp.text
+        assert 'id="live-indicator"' in resp.text
+
     def test_data_empty(self, client, z2m_sensor):
         resp = client.get(f"/devices/{z2m_sensor.id}/climate-chart/data")
         assert resp.status_code == 200
@@ -709,6 +717,13 @@ class TestPowerChart:
         resp = client.get(f"/devices/{z2m_plug.id}/power-chart")
         assert resp.status_code == 200
         assert "Power History" in resp.text
+
+    def test_chart_page_wires_up_live_refresh_on_short_windows(self, client, z2m_plug):
+        resp = client.get(f"/devices/{z2m_plug.id}/power-chart")
+        assert "selectHours(1)" in resp.text
+        assert "selectHours(6)" in resp.text
+        assert "hours === 1 || hours === 6" in resp.text
+        assert 'id="live-indicator"' in resp.text
 
     def test_data_empty(self, client, z2m_plug):
         resp = client.get(f"/devices/{z2m_plug.id}/power-chart/data")
@@ -1056,6 +1071,13 @@ class TestAcChart:
         resp = client.get(f"/devices/{hon_device.id}/ac-chart")
         assert resp.status_code == 200
         assert "Temperature History" in resp.text
+
+    def test_chart_page_wires_up_live_refresh_on_short_windows(self, client, hon_device):
+        resp = client.get(f"/devices/{hon_device.id}/ac-chart")
+        assert "selectHours(1)" in resp.text
+        assert "selectHours(6)" in resp.text
+        assert "hours === 1 || hours === 6" in resp.text
+        assert 'id="live-indicator"' in resp.text
 
     def test_chart_page_404_for_non_ac(self, client, z2m_plug):
         resp = client.get(f"/devices/{z2m_plug.id}/ac-chart")

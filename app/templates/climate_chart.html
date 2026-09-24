@@ -8,13 +8,16 @@
     <h1 class="text-xl font-semibold text-gray-800">{{ device.name }} — Climate History</h1>
   </div>
 
-  <div class="flex gap-2 mb-4">
+  <div class="flex gap-2 mb-4 items-center">
     {% for h, label in [(1, "1h"), (6, "6h"), (24, "24h"), (168, "7d")] %}
-    <button onclick="loadChart({{ h }})" id="btn-{{ h }}"
+    <button onclick="selectHours({{ h }})" id="btn-{{ h }}"
       class="px-3 py-1 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
       {{ label }}
     </button>
     {% endfor %}
+    <span id="live-indicator" class="text-xs text-gray-400 flex items-center gap-1" style="display:none">
+      <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Live
+    </span>
   </div>
 
   <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
@@ -266,7 +269,25 @@
     );
   }
 
-  loadChart(6);
+  let refreshTimer = null;
+
+  // Live monitoring only makes sense on the short windows — 24h/7d are for
+  // looking back, not watching the sensor right now, so only poll on 1h/6h.
+  // Matches the dashboard climate widget's own refresh cadence (30s).
+  function scheduleRefresh(hours) {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+    const live = hours === 1 || hours === 6;
+    document.getElementById('live-indicator').style.display = live ? '' : 'none';
+    if (live) refreshTimer = setInterval(() => loadChart(hours), 30000);
+  }
+
+  function selectHours(hours) {
+    loadChart(hours);
+    scheduleRefresh(hours);
+  }
+
+  selectHours(6);
   loadDaily(90);
 </script>
 {% endblock %}
