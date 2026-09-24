@@ -1,4 +1,4 @@
-{% set field_labels = {"state": "state", "brightness": "brightness", "temperature": "selected temp (°C)", "indoor_temp": "indoor temp (°C)", "outdoor_temp": "outdoor temp (°C)", "online": "online"} %}
+{% set field_labels = {"state": "state", "brightness": "brightness", "temperature": "selected temp (°C)", "indoor_temp": "indoor temp (°C)", "outdoor_temp": "outdoor temp (°C)", "sensor_temperature": "sensor temp (°C)", "humidity": "humidity (%)", "online": "online"} %}
 {% set op_labels = {"eq": "=", "ne": "≠", "gt": ">", "lt": "<"} %}
 {% set tdev = devices_by_id.get(auto.trigger_device_id) %}
 {% set adev = devices_by_id.get(auto.action_device_id) %}

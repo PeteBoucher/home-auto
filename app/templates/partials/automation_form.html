@@ -77,6 +77,8 @@
           <option value="temperature" {% if is_edit and auto.trigger_field == 'temperature' %}selected{% endif %}>Temperature — selected (°C)</option>
           <option value="indoor_temp" {% if is_edit and auto.trigger_field == 'indoor_temp' %}selected{% endif %}>Temperature — indoor (°C)</option>
           <option value="outdoor_temp" {% if is_edit and auto.trigger_field == 'outdoor_temp' %}selected{% endif %}>Temperature — outdoor (°C)</option>
+          <option value="sensor_temperature" {% if is_edit and auto.trigger_field == 'sensor_temperature' %}selected{% endif %}>Temperature — sensor (°C)</option>
+          <option value="humidity" {% if is_edit and auto.trigger_field == 'humidity' %}selected{% endif %}>Humidity — sensor (%)</option>
           <option value="online" {% if is_edit and auto.trigger_field == 'online' %}selected{% endif %}>Online/Offline</option>
           <option value="media_state" {% if is_edit and auto.trigger_field == 'media_state' %}selected{% endif %}>Media state (Fire TV)</option>
           <option value="app_id" {% if is_edit and auto.trigger_field == 'app_id' %}selected{% endif %}>App ID (Fire TV)</option>

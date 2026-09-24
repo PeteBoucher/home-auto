@@ -1216,3 +1216,59 @@ class TestAutomationTimeWindow:
         assert auto is not None
         assert auto.trigger_window_start is None
         assert auto.trigger_window_end is None
+
+
+class TestAutomationSensorFieldEditForm:
+    """The trigger_field <select> used to omit sensor_temperature/humidity
+    entirely, so editing a sensor-threshold rule (e.g. the filament dryer's
+    heat on/off pair) silently showed "On/Off state" instead — and saving it
+    in that state would have overwritten trigger_field with the select's
+    default rather than the rule's real field."""
+
+    def test_edit_form_selects_sensor_temperature(self, client, z2m_sensor, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Filament dryer: heat off", enabled=True, trigger_type="device_state",
+            trigger_device_id=z2m_sensor.id, trigger_field="sensor_temperature",
+            trigger_operator="gt", trigger_value="50",
+            action_device_id=z2m_sensor.id, action_type="set_state_off",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        resp = client.get(f"/automations/{auto.id}/edit")
+        assert resp.status_code == 200
+        assert 'value="sensor_temperature" selected' in resp.text
+        assert 'value="state" selected' not in resp.text
+        # Falls through to a plain number input, not the On/Online dropdown.
+        assert 'name="trigger_value" value="50"' in resp.text
+
+    def test_edit_form_selects_humidity(self, client, z2m_sensor, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Damp alert", enabled=True, trigger_type="device_state",
+            trigger_device_id=z2m_sensor.id, trigger_field="humidity",
+            trigger_operator="gt", trigger_value="70",
+            action_device_id=z2m_sensor.id, action_type="set_state_on",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        resp = client.get(f"/automations/{auto.id}/edit")
+        assert 'value="humidity" selected' in resp.text
+
+    def test_row_summary_labels_sensor_temperature(self, client, z2m_sensor, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Filament dryer: heat off", enabled=True, trigger_type="device_state",
+            trigger_device_id=z2m_sensor.id, trigger_field="sensor_temperature",
+            trigger_operator="gt", trigger_value="50",
+            action_device_id=z2m_sensor.id, action_type="set_state_off",
+        )
+        session.add(auto)
+        session.commit()
+
+        resp = client.get("/automations")
+        assert "sensor temp (°C)" in resp.text
