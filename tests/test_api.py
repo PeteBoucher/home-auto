@@ -1174,6 +1174,85 @@ class TestAcChart:
             datetime.fromisoformat(e["time"])  # parseable
 
 
+class TestAutomationGroupTarget:
+    """An automation's action can target a DeviceGroup instead of a single
+    Device — encoded on the wire as one action_target field ("device:<id>"
+    or "group:<id>") rather than separate device/group form fields."""
+
+    @pytest.fixture
+    def group(self, session, z2m_bulb):
+        from app.devices.models import DeviceGroup
+        g = DeviceGroup(name="Lounge & Dining lights", dimmable=True)
+        session.add(g)
+        session.commit()
+        session.refresh(g)
+        z2m_bulb.group_id = g.id
+        session.add(z2m_bulb)
+        session.commit()
+        return g
+
+    def test_create_with_group_target_sets_group_id_not_device_id(self, client, group, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Evening cycle: warm up",
+            "enabled": "1",
+            "trigger_type": "time",
+            "trigger_time": "20:00",
+            "action_target": f"group:{group.id}",
+            "action_type": "set_color_temp",
+            "action_value": "60",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Evening cycle: warm up")).first()
+        assert auto is not None
+        assert auto.action_group_id == group.id
+        assert auto.action_device_id is None
+
+    def test_create_with_device_target_sets_device_id_not_group_id(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Single bulb rule",
+            "enabled": "1",
+            "trigger_type": "time",
+            "trigger_time": "20:00",
+            "action_target": f"device:{z2m_bulb.id}",
+            "action_type": "set_state_on",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Single bulb rule")).first()
+        assert auto is not None
+        assert auto.action_device_id == z2m_bulb.id
+        assert auto.action_group_id is None
+
+    def test_row_shows_group_name(self, client, group, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Evening cycle: warm up", enabled=True,
+            trigger_type="time", trigger_time="20:00",
+            action_group_id=group.id, action_type="set_color_temp", action_value="60",
+        )
+        session.add(auto)
+        session.commit()
+
+        resp = client.get("/automations")
+        assert "Lounge &amp; Dining lights" in resp.text or "Lounge & Dining lights" in resp.text
+
+    def test_edit_form_preselects_group_option(self, client, group, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Evening cycle: warm up", enabled=True,
+            trigger_type="time", trigger_time="20:00",
+            action_group_id=group.id, action_type="set_color_temp", action_value="60",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        resp = client.get(f"/automations/{auto.id}/edit")
+        assert resp.status_code == 200
+        assert f'value="group:{group.id}" selected' in resp.text
+
+
 class TestAutomationWithinTrigger:
     def test_create_captures_compare_field(self, client, z2m_bulb, session):
         from app.devices.models import Automation
@@ -1186,7 +1265,7 @@ class TestAutomationWithinTrigger:
             "trigger_operator": "within",
             "trigger_value": "2",
             "trigger_compare_field": "temperature",
-            "action_device_id": str(z2m_bulb.id),
+            "action_target": f"device:{z2m_bulb.id}",
             "action_type": "set_state_off",
         })
         assert resp.status_code == 200
@@ -1211,7 +1290,7 @@ class TestAutomationTimeWindow:
             "trigger_compare_field": "temperature",
             "trigger_window_start": "18:00",
             "trigger_window_end": "23:00",
-            "action_device_id": str(z2m_bulb.id),
+            "action_target": f"device:{z2m_bulb.id}",
             "action_type": "set_state_off",
         })
         assert resp.status_code == 200
@@ -1230,7 +1309,7 @@ class TestAutomationTimeWindow:
             "trigger_field": "state",
             "trigger_operator": "eq",
             "trigger_value": "true",
-            "action_device_id": str(z2m_bulb.id),
+            "action_target": f"device:{z2m_bulb.id}",
             "action_type": "set_state_off",
         })
         assert resp.status_code == 200

@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 
 from app.db import SessionDep
-from app.devices.models import Automation, Device, TriggerType
+from app.devices.models import Automation, Device, DeviceGroup, TriggerType
 from app.services.automation_engine import apply_automation, remove_automation
 from app.templating import templates
 
@@ -12,18 +12,32 @@ router = APIRouter(prefix="/automations", tags=["automations"])
 
 def _render_row(request: Request, auto: Automation, session: Session) -> str:
     devices_by_id = {d.id: d for d in session.exec(select(Device)).all()}
+    groups_by_id = {g.id: g for g in session.exec(select(DeviceGroup)).all()}
     return templates.env.get_template("partials/automation_row.html").render(
-        request=request, auto=auto, devices_by_id=devices_by_id
+        request=request, auto=auto, devices_by_id=devices_by_id, groups_by_id=groups_by_id
     )
+
+
+def _parse_action_target(form) -> tuple[int | None, int | None]:
+    """Parses the form's single "action_target" field ("device:<id>" or
+    "group:<id>") into (action_device_id, action_group_id) — exactly one set."""
+    target_type, _, target_id = str(form.get("action_target", "")).partition(":")
+    if not target_id:
+        return None, None
+    if target_type == "group":
+        return None, int(target_id)
+    return int(target_id), None
 
 
 async def _parse_form(request: Request, auto: Automation | None = None) -> Automation:
     form = await request.form()
+    action_device_id, action_group_id = _parse_action_target(form)
     if auto is None:
         auto = Automation(
             name="",
             trigger_type=TriggerType.time,
-            action_device_id=int(str(form.get("action_device_id", 0))),
+            action_device_id=action_device_id,
+            action_group_id=action_group_id,
             action_type="set_state_on",
         )
     auto.name = str(form.get("name", "")).strip() or "Unnamed"
@@ -41,7 +55,8 @@ async def _parse_form(request: Request, auto: Automation | None = None) -> Autom
     auto.trigger_sun_event = str(form.get("trigger_sun_event", "")) or None
     raw_offset = form.get("trigger_sun_offset")
     auto.trigger_sun_offset = int(str(raw_offset)) if raw_offset not in (None, "") else 0
-    auto.action_device_id = int(str(form.get("action_device_id", 0)))
+    auto.action_device_id = action_device_id
+    auto.action_group_id = action_group_id
     auto.action_type = str(form.get("action_type", "set_state_on"))
     auto.action_value = str(form.get("action_value", "")) or None
     return auto
@@ -52,17 +67,20 @@ async def automations_page(request: Request, session: SessionDep):
     automations = list(session.exec(select(Automation)).all())
     devices = list(session.exec(select(Device)).all())
     devices_by_id = {d.id: d for d in devices}
+    groups = list(session.exec(select(DeviceGroup)).all())
+    groups_by_id = {g.id: g for g in groups}
     return templates.TemplateResponse(
         request, "automations.html",
-        {"automations": automations, "devices": devices, "devices_by_id": devices_by_id}
+        {"automations": automations, "devices": devices, "devices_by_id": devices_by_id, "groups_by_id": groups_by_id}
     )
 
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_form(request: Request, session: SessionDep):
     devices = list(session.exec(select(Device)).all())
+    groups = list(session.exec(select(DeviceGroup)).all())
     return templates.TemplateResponse(
-        request, "partials/automation_form.html", {"auto": None, "devices": devices}
+        request, "partials/automation_form.html", {"auto": None, "devices": devices, "groups": groups}
     )
 
 
@@ -72,8 +90,9 @@ async def edit_form(auto_id: int, request: Request, session: SessionDep):
     if not auto:
         raise HTTPException(status_code=404)
     devices = list(session.exec(select(Device)).all())
+    groups = list(session.exec(select(DeviceGroup)).all())
     return templates.TemplateResponse(
-        request, "partials/automation_form.html", {"auto": auto, "devices": devices}
+        request, "partials/automation_form.html", {"auto": auto, "devices": devices, "groups": groups}
     )
 
 

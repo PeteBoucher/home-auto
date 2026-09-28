@@ -6,10 +6,11 @@ from datetime import datetime, time, timedelta
 from sqlmodel import Session, select
 
 from app.db import engine
-from app.devices.models import Automation, Device, Event, Integration, TriggerType
+from app.devices.models import Automation, Device, DeviceGroup, Event, Integration, TriggerType
 from app.devices import tuya as tuya_client
 from app.devices import mqtt as mqtt_client
 from app.devices import hon as hon_client
+from app.services import groups as groups_service
 from app.services import red_alert
 from app.services.weather import get_sun_times
 
@@ -54,28 +55,36 @@ def _build_command(action_type: str, action_value: str | None) -> dict:
 
 async def _fire(automation: Automation) -> None:
     with Session(engine) as session:
-        device = session.get(Device, automation.action_device_id)
-    if not device:
-        log.warning("Automation %r: action device %d not found", automation.name, automation.action_device_id)
-        return
-    command = _build_command(automation.action_type, automation.action_value)
-    if not command:
-        log.warning("Automation %r: empty command for action_type=%r", automation.name, automation.action_type)
-        return
-    description = _describe_command(automation.action_type, automation.action_value, device.name)
-    log.warning("Automation %r firing: %s", automation.name, description)
-    _log("automation", f"'{automation.name}' fired — {description}")
-    if device.integration == Integration.tuya:
-        await tuya_client.send_command(device, command)
-    elif device.integration == Integration.zigbee2mqtt:
-        payload: dict = {}
-        if "state" in command:
-            payload["state"] = "ON" if command["state"] else "OFF"
-        if "brightness" in command:
-            payload["brightness"] = round(command["brightness"] * 2.54)
-        await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
-    elif device.integration == Integration.hon:
-        await hon_client.send_command(device.device_id, command)
+        group = session.get(DeviceGroup, automation.action_group_id) if automation.action_group_id else None
+        device = None if group else session.get(Device, automation.action_device_id)
+        target = group or device
+        if not target:
+            log.warning(
+                "Automation %r: action target not found (group=%r, device=%r)",
+                automation.name, automation.action_group_id, automation.action_device_id,
+            )
+            return
+        command = _build_command(automation.action_type, automation.action_value)
+        if not command:
+            log.warning("Automation %r: empty command for action_type=%r", automation.name, automation.action_type)
+            return
+        description = _describe_command(automation.action_type, automation.action_value, target.name)
+        log.warning("Automation %r firing: %s", automation.name, description)
+        _log("automation", f"'{automation.name}' fired — {description}")
+
+        if group:
+            # Native Zigbee groupcast for Zigbee members, individual commands
+            # for everything else — same fan-out a group card's own command
+            # button uses.
+            await groups_service.send_group_command(session, group, command)
+        elif device.integration == Integration.tuya:
+            await tuya_client.send_command(device, command)
+        elif device.integration == Integration.zigbee2mqtt:
+            payload = mqtt_client.build_set_payload(command)
+            if payload:
+                await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
+        elif device.integration == Integration.hon:
+            await hon_client.send_command(device.device_id, command)
 
 
 def _within_time_window(start: str | None, end: str | None, now: datetime | None = None) -> bool:

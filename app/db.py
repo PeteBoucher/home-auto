@@ -1,8 +1,11 @@
+import logging
 from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy import event, text
 from sqlmodel import Session, SQLModel, create_engine
+
+log = logging.getLogger(__name__)
 
 
 def _configure_sqlite(dbapi_connection, connection_record) -> None:
@@ -63,12 +66,68 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN time_in_range_seconds INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE device ADD COLUMN time_in_range_updated_at TEXT",
             "ALTER TABLE device ADD COLUMN climate_widget_cutoff TEXT",
+            "ALTER TABLE automation ADD COLUMN action_group_id INTEGER REFERENCES devicegroup(id)",
         ]:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
             except Exception:
                 pass  # column already exists
+
+    with engine.begin() as conn:
+        _allow_null_action_device_id(conn)
+
+
+# Full current column set of `automation`, in the order the table is rebuilt
+# with below — kept in sync with the Automation model by hand, same as the
+# ALTER TABLE list above.
+_AUTOMATION_COLUMNS = (
+    "id", "name", "enabled", "trigger_type", "trigger_time", "trigger_device_id",
+    "trigger_field", "trigger_operator", "trigger_value", "trigger_compare_field",
+    "trigger_sun_event", "trigger_sun_offset", "trigger_window_start", "trigger_window_end",
+    "action_device_id", "action_group_id", "action_type", "action_value",
+)
+
+
+def _allow_null_action_device_id(conn) -> None:
+    """Automations could originally only target a single Device
+    (action_device_id NOT NULL); they can now target a DeviceGroup instead
+    (action_group_id), leaving action_device_id null. SQLite has no ALTER
+    COLUMN to drop a NOT NULL constraint, so an existing table created under
+    the old schema needs a full rebuild — a fresh install never hits this,
+    since create_all() already makes the column nullable from the model.
+    """
+    cols = conn.execute(text("PRAGMA table_info(automation)")).fetchall()
+    action_device_col = next((c for c in cols if c[1] == "action_device_id"), None)
+    if not action_device_col or action_device_col[3] == 0:
+        return  # no table yet, or already nullable
+    log.warning("Rebuilding 'automation' table to allow group-targeted rules (action_device_id -> nullable)")
+    conn.execute(text("""
+        CREATE TABLE automation_new (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            enabled BOOLEAN NOT NULL,
+            trigger_type VARCHAR NOT NULL,
+            trigger_time VARCHAR,
+            trigger_device_id INTEGER REFERENCES device(id),
+            trigger_field VARCHAR,
+            trigger_operator VARCHAR,
+            trigger_value VARCHAR,
+            trigger_compare_field VARCHAR,
+            trigger_sun_event VARCHAR,
+            trigger_sun_offset INTEGER,
+            trigger_window_start VARCHAR,
+            trigger_window_end VARCHAR,
+            action_device_id INTEGER REFERENCES device(id),
+            action_group_id INTEGER REFERENCES devicegroup(id),
+            action_type VARCHAR NOT NULL,
+            action_value VARCHAR
+        )
+    """))
+    columns = ", ".join(_AUTOMATION_COLUMNS)
+    conn.execute(text(f"INSERT INTO automation_new ({columns}) SELECT {columns} FROM automation"))
+    conn.execute(text("DROP TABLE automation"))
+    conn.execute(text("ALTER TABLE automation_new RENAME TO automation"))
 
 
 def get_session():

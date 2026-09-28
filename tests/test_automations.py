@@ -8,7 +8,7 @@ import pytest
 from app.services.weather import get_sun_times, is_raining
 import app.services.automations as auto_module
 import app.services.automation_engine as auto_engine
-from app.devices.models import Automation, Device, DeviceType, Integration, TriggerType
+from app.devices.models import Automation, Device, DeviceGroup, DeviceType, Integration, TriggerType
 
 
 class TestGetSunTimes:
@@ -510,3 +510,105 @@ class TestSunTriggers:
         )
         auto_engine.remove_automation(auto.id)
         assert scheduler.get_job(f"auto_sun_{auto.id}") is None
+
+
+class TestGroupTargetedAutomation:
+    """An automation can target a DeviceGroup instead of a single Device —
+    used e.g. for a "Lounge & Dining lights" evening brightness/colour-temp
+    cycle that should command the whole group at once via a native Zigbee
+    groupcast, rather than each member individually."""
+
+    @pytest.fixture
+    def group(self, session, z2m_bulb):
+        g = DeviceGroup(name="Lounge & Dining lights", zigbee_group_name="group_1", dimmable=True)
+        session.add(g)
+        session.commit()
+        session.refresh(g)
+        z2m_bulb.group_id = g.id
+        session.add(z2m_bulb)
+        session.commit()
+        return g
+
+    def test_fire_commands_the_group_not_a_device(self, engine, session, group):
+        auto = Automation(
+            name="Evening cycle: warm up", enabled=True,
+            trigger_type=TriggerType.sun, trigger_sun_event="sunset", trigger_sun_offset=0,
+            action_group_id=group.id, action_type="set_color_temp", action_value="60",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.groups_service.send_group_command", new=AsyncMock()) as mock_send,
+        ):
+            asyncio.run(auto_engine._fire(auto))
+
+        mock_send.assert_awaited_once()
+        _called_session, called_group, called_command = mock_send.call_args.args
+        assert called_group.id == group.id
+        assert called_command == {"color_temp": 60}
+
+    def test_fire_still_targets_a_single_device_when_no_group_set(self, engine, session, z2m_bulb):
+        auto = Automation(
+            name="Single bulb rule", enabled=True,
+            trigger_type=TriggerType.sun, trigger_sun_event="sunset", trigger_sun_offset=0,
+            action_device_id=z2m_bulb.id, action_type="set_state_on",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.groups_service.send_group_command", new=AsyncMock()) as mock_send,
+            patch("app.services.automation_engine.mqtt_client.publish", new=AsyncMock()) as mock_pub,
+        ):
+            asyncio.run(auto_engine._fire(auto))
+
+        mock_send.assert_not_awaited()
+        mock_pub.assert_awaited_once()
+
+    def test_missing_group_logs_warning_without_raising(self, engine, session):
+        auto = Automation(
+            name="Orphaned group rule", enabled=True,
+            trigger_type=TriggerType.sun, trigger_sun_event="sunset", trigger_sun_offset=0,
+            action_group_id=999999, action_type="set_state_on",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        with patch("app.services.automation_engine.engine", engine):
+            asyncio.run(auto_engine._fire(auto))  # must not raise
+
+
+class TestFireZigbeeColorCommands:
+    """_fire's direct (non-group) Zigbee branch used to build its own /set
+    payload by hand and only ever forwarded state/brightness — a
+    set_color_temp or set_color_rgb automation on a bare Zigbee device
+    silently did nothing. It now reuses mqtt_client.build_set_payload, the
+    same translation groups and the per-device command endpoint use."""
+
+    def test_color_temp_action_reaches_mqtt_payload(self, engine, session, z2m_bulb):
+        from app.devices.zigbee_color import pct_to_mireds
+
+        auto = Automation(
+            name="Warm up", enabled=True,
+            trigger_type=TriggerType.sun, trigger_sun_event="sunset", trigger_sun_offset=0,
+            action_device_id=z2m_bulb.id, action_type="set_color_temp", action_value="30",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.mqtt_client.publish", new=AsyncMock()) as mock_pub,
+        ):
+            asyncio.run(auto_engine._fire(auto))
+
+        mock_pub.assert_awaited_once_with(
+            f"zigbee2mqtt/{z2m_bulb.device_id}/set", {"color_temp": pct_to_mireds(30)}
+        )

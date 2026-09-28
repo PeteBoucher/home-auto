@@ -136,8 +136,13 @@ class Automation(SQLModel, table=True):
     trigger_window_start: Optional[str] = None                               # "HH:MM" local — device_state triggers only, optional
     trigger_window_end: Optional[str] = None                                 # "HH:MM" local — condition is ignored outside [start, end); supports overnight spans (start > end)
 
-    # Action
-    action_device_id: int = Field(foreign_key="device.id")
+    # Action — exactly one of action_device_id/action_group_id is set, depending
+    # on whether the rule targets a single device or a DeviceGroup (the latter
+    # fans out via services/groups.send_group_command, same as a group card's
+    # own command button — a single native Zigbee groupcast plus individual
+    # commands for any non-Zigbee members).
+    action_device_id: Optional[int] = Field(default=None, foreign_key="device.id")
+    action_group_id: Optional[int] = Field(default=None, foreign_key="devicegroup.id")
     action_type: str   # "set_state_on", "set_state_off", "set_brightness", "set_color_temp", "set_color_rgb"
     action_value: Optional[str] = None
 

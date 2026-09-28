@@ -151,12 +151,21 @@
   <div class="space-y-2 border-l-2 border-green-100 pl-3">
     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Then</p>
 
-    <select name="action_device_id"
+    {% set atarget = ('group:' ~ auto.action_group_id) if is_edit and auto.action_group_id else ('device:' ~ auto.action_device_id) if is_edit and auto.action_device_id else '' %}
+    <select name="action_target"
             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-      {% for d in devices %}
-        <option value="{{ d.id }}"
-                {% if is_edit and auto.action_device_id == d.id %}selected{% endif %}>{{ d.name }}</option>
-      {% endfor %}
+      {% if groups %}
+        <optgroup label="Groups">
+          {% for g in groups %}
+            <option value="group:{{ g.id }}" {% if atarget == 'group:' ~ g.id %}selected{% endif %}>{{ g.name }}</option>
+          {% endfor %}
+        </optgroup>
+      {% endif %}
+      <optgroup label="Devices">
+        {% for d in devices %}
+          <option value="device:{{ d.id }}" {% if atarget == 'device:' ~ d.id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </optgroup>
     </select>
 
     <div class="flex gap-2">
