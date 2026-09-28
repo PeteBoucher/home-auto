@@ -26,6 +26,7 @@ function updateTriggerFields() {
   if (!type) return;
   document.getElementById('time-fields').style.display = type === 'time' ? '' : 'none';
   document.getElementById('sun-fields').style.display = type === 'sun' ? '' : 'none';
+  document.getElementById('weather-fields').style.display = type === 'weather' ? '' : 'none';
   document.getElementById('state-fields').style.display = type === 'device_state' ? '' : 'none';
 }
 
@@ -78,6 +79,7 @@ function updateActionFields() {
   document.getElementById('action-value-field').style.display = needsValue.includes(type) ? '' : 'none';
   const valueInput = document.getElementById('action_value');
   valueInput.type = type === 'set_color_rgb' ? 'color' : 'number';
+  document.getElementById('snapshot-before-field').style.display = type === 'restore_snapshot' ? 'none' : '';
 }
 
 document.body.addEventListener('htmx:afterSwap', function(evt) {

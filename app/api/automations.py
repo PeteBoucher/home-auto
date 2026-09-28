@@ -46,10 +46,20 @@ async def _parse_form(request: Request, auto: Automation | None = None) -> Autom
     auto.trigger_time = str(form.get("trigger_time", "")) or None
     raw_tdev = form.get("trigger_device_id")
     auto.trigger_device_id = int(str(raw_tdev)) if raw_tdev else None
-    auto.trigger_field = str(form.get("trigger_field", "")) or None
-    auto.trigger_operator = str(form.get("trigger_operator", "eq")) or "eq"
-    auto.trigger_value = str(form.get("trigger_value", "")) or None
-    auto.trigger_compare_field = str(form.get("trigger_compare_field", "")) or None
+    if auto.trigger_type == TriggerType.weather:
+        # Fixed condition (only "raining" exists today) driven by its own
+        # trigger_weather_value field — kept separate from trigger_value so it
+        # doesn't collide with the device_state section's same-named input,
+        # which stays present (just hidden) in the DOM either way.
+        auto.trigger_field = "raining"
+        auto.trigger_operator = "eq"
+        auto.trigger_value = str(form.get("trigger_weather_value", "true"))
+        auto.trigger_compare_field = None
+    else:
+        auto.trigger_field = str(form.get("trigger_field", "")) or None
+        auto.trigger_operator = str(form.get("trigger_operator", "eq")) or "eq"
+        auto.trigger_value = str(form.get("trigger_value", "")) or None
+        auto.trigger_compare_field = str(form.get("trigger_compare_field", "")) or None
     auto.trigger_window_start = str(form.get("trigger_window_start", "")) or None
     auto.trigger_window_end = str(form.get("trigger_window_end", "")) or None
     auto.trigger_sun_event = str(form.get("trigger_sun_event", "")) or None
@@ -59,6 +69,7 @@ async def _parse_form(request: Request, auto: Automation | None = None) -> Autom
     auto.action_group_id = action_group_id
     auto.action_type = str(form.get("action_type", "set_state_on"))
     auto.action_value = str(form.get("action_value", "")) or None
+    auto.action_snapshot_before = form.get("action_snapshot_before") == "1"
     return auto
 
 

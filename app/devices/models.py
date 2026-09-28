@@ -10,6 +10,7 @@ class TriggerType(str, Enum):
     time = "time"
     device_state = "device_state"
     sun = "sun"
+    weather = "weather"  # currently just rain — see services/weather.is_raining()
 
 
 class DeviceType(str, Enum):
@@ -143,8 +144,17 @@ class Automation(SQLModel, table=True):
     # commands for any non-Zigbee members).
     action_device_id: Optional[int] = Field(default=None, foreign_key="device.id")
     action_group_id: Optional[int] = Field(default=None, foreign_key="devicegroup.id")
-    action_type: str   # "set_state_on", "set_state_off", "set_brightness", "set_color_temp", "set_color_rgb"
+    action_type: str   # "set_state_on", "set_state_off", "set_brightness", "set_color_temp", "set_color_rgb", "restore_snapshot"
     action_value: Optional[str] = None
+    action_snapshot_before: bool = Field(default=False)
+    # If set, the target's (device's, or every current member's if a group)
+    # live state is captured in-memory before this action's command goes out,
+    # keyed by device id — a paired rule elsewhere with action_type
+    # "restore_snapshot" targeting the same device/group puts it back later
+    # (action_value is unused for that action_type). In-memory only, same
+    # trade-off the old hardcoded rain automation made: a restart between the
+    # two firings loses the snapshot, leaving the target in its "before
+    # restore" state until manually fixed or the pair fires again.
 
 
 class Event(SQLModel, table=True):

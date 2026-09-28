@@ -35,6 +35,7 @@
       <option value="time" {% if ttype == 'time' %}selected{% endif %}>Time of day</option>
       <option value="sun" {% if ttype == 'sun' %}selected{% endif %}>Sunrise / Sunset</option>
       <option value="device_state" {% if ttype == 'device_state' %}selected{% endif %}>Device state changes</option>
+      <option value="weather" {% if ttype == 'weather' %}selected{% endif %}>Weather (rain)</option>
     </select>
 
     <!-- Time trigger -->
@@ -57,6 +58,15 @@
                class="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm">
         <span class="text-xs text-gray-400">minutes offset (negative = before, positive = after)</span>
       </div>
+    </div>
+
+    <!-- Weather trigger -->
+    <div id="weather-fields" {% if ttype != 'weather' %}style="display:none"{% endif %}>
+      <select name="trigger_weather_value"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+        <option value="true" {% if not is_edit or (ttype == 'weather' and auto.trigger_value == 'true') %}selected{% endif %}>Rain starts</option>
+        <option value="false" {% if is_edit and ttype == 'weather' and auto.trigger_value == 'false' %}selected{% endif %}>Rain stops</option>
+      </select>
     </div>
 
     <!-- Device state trigger -->
@@ -176,6 +186,7 @@
         <option value="set_brightness" {% if atype == 'set_brightness' %}selected{% endif %}>Set brightness (%)</option>
         <option value="set_color_temp" {% if atype == 'set_color_temp' %}selected{% endif %}>Set colour temperature</option>
         <option value="set_color_rgb" {% if atype == 'set_color_rgb' %}selected{% endif %}>Set colour</option>
+        <option value="restore_snapshot" {% if atype == 'restore_snapshot' %}selected{% endif %}>Restore previous state</option>
       </select>
       <div id="action-value-field" {% if not needs_action_value %}style="display:none"{% endif %}>
         <input type="{{ 'color' if atype == 'set_color_rgb' else 'number' }}"
@@ -184,6 +195,13 @@
                class="border border-gray-300 rounded-lg px-3 py-2 text-sm w-28">
       </div>
     </div>
+    <label id="snapshot-before-field" class="flex items-center gap-1.5 text-xs text-gray-500"
+           {% if atype == 'restore_snapshot' %}style="display:none"{% endif %}>
+      <input type="checkbox" name="action_snapshot_before" value="1"
+             {% if is_edit and auto.action_snapshot_before %}checked{% endif %}
+             class="accent-blue-500">
+      Remember current state first (so a later "Restore previous state" rule can put it back)
+    </label>
   </div>
 
   <div class="flex justify-end gap-2 pt-1">

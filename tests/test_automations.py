@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.services.weather import get_sun_times, is_raining
-import app.services.automations as auto_module
 import app.services.automation_engine as auto_engine
 from app.devices.models import Automation, Device, DeviceGroup, DeviceType, Integration, TriggerType
 
@@ -80,14 +79,55 @@ class TestIsRaining:
         assert result == expected
 
 
-class TestRainAutomation:
+class TestRestoreCommand:
+    """_restore_command() builds a single command dict from a captured
+    snapshot — same precedence the old rain automation's per-field
+    restore_bulb_state used, just merged into one call instead of several."""
+
+    def test_off_snapshot_returns_off_command(self):
+        assert auto_engine._restore_command({"state": False}) == {"state": False}
+
+    def test_colour_snapshot_restores_rgb(self):
+        snap = {"state": True, "color_mode": "colour", "color_rgb": "#ff00ff", "brightness": None, "color_temp": None}
+        assert auto_engine._restore_command(snap) == {"state": True, "color_rgb": "#ff00ff"}
+
+    def test_white_snapshot_restores_brightness_and_color_temp(self):
+        snap = {"state": True, "color_mode": "white", "color_rgb": None, "brightness": 80, "color_temp": 50}
+        assert auto_engine._restore_command(snap) == {"state": True, "brightness": 80, "color_temp": 50}
+
+
+class TestEvalConditionRaining:
+    """"raining" must land in _eval_condition's boolean-field branch, same as
+    "state"/"online" — otherwise eq/ne against the "true"/"false" strings the
+    weather trigger form sends would hit the numeric branch's float("true")
+    and silently always evaluate False."""
+
+    def test_true_when_raining_and_eq_true(self):
+        assert auto_engine._eval_condition("raining", "eq", "true", {"raining": True}) is True
+
+    def test_false_when_not_raining_and_eq_true(self):
+        assert auto_engine._eval_condition("raining", "eq", "true", {"raining": False}) is False
+
+    def test_true_when_not_raining_and_eq_false(self):
+        assert auto_engine._eval_condition("raining", "eq", "false", {"raining": False}) is True
+
+
+class TestWeatherTriggers:
+    """The old hardcoded rain automation (services/automations.py, now
+    deleted) always tinted every Tuya bulb blue and restored its exact prior
+    state from an in-memory snapshot. "Raining" is now a regular weather
+    trigger condition evaluated by check_weather_triggers() like any other
+    automation, with a generic action_snapshot_before / "restore_snapshot"
+    action pair replacing the old bespoke save-and-restore — the user picks
+    which device or group it applies to and what colour, same as any other
+    rule, instead of it being hardcoded to "every Tuya bulb"."""
+
     def setup_method(self):
-        auto_module._raining = False
-        auto_module._saved.clear()
+        auto_engine._last_eval.clear()
+        auto_engine._snapshots.clear()
 
     @pytest.fixture
     def bulb(self, session):
-        from app.devices.models import Device, DeviceType, Integration
         d = Device(
             name="Test Bulb",
             device_id="dev_bulb_001",
@@ -107,61 +147,140 @@ class TestRainAutomation:
         session.refresh(d)
         return d
 
-    def test_activates_on_rain(self, engine, bulb):
+    def _make_auto(self, session, name, trigger_value, action_type, bulb, action_value=None, snapshot_before=False):
+        a = Automation(
+            name=name, enabled=True, trigger_type=TriggerType.weather,
+            trigger_field="raining", trigger_operator="eq", trigger_value=trigger_value,
+            action_device_id=bulb.id, action_type=action_type, action_value=action_value,
+            action_snapshot_before=snapshot_before,
+        )
+        session.add(a)
+        session.commit()
+        session.refresh(a)
+        return a
+
+    def test_fires_rain_start_rule_and_snapshots_first(self, engine, session, bulb):
+        self._make_auto(
+            session, "Rain: tint blue", "true", "set_color_rgb", bulb,
+            action_value="#add8e6", snapshot_before=True,
+        )
         with (
-            patch("app.devices.tuya.engine", engine),
-            patch("app.services.automations.is_raining", new=AsyncMock(return_value=True)),
-            patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.is_raining", new=AsyncMock(return_value=True)),
+            patch("app.devices.tuya.get_state", new=AsyncMock(return_value={
+                "online": True, "state": False, "brightness": 80, "color_temp": 50,
+                "color_mode": "white", "color_rgb": None,
+            })),
+            patch("app.devices.tuya.send_command", new=AsyncMock()) as mock_cmd,
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
         ):
-            asyncio.run(auto_module.check_weather())
+            asyncio.run(auto_engine.check_weather_triggers())
 
-        assert auto_module._raining is True
-        assert bulb.id in auto_module._saved
-        calls = [str(c) for c in mock_cmd.call_args_list]
-        assert any("True" in c for c in calls)
-        assert any("#add8e6" in c for c in calls)
+        mock_cmd.assert_awaited_once()
+        call_device, call_command = mock_cmd.call_args.args
+        assert call_device.id == bulb.id
+        assert call_command == {"color_rgb": "#add8e6"}
 
-    def test_restores_when_cleared(self, engine, bulb):
-        auto_module._raining = True
-        auto_module._saved[bulb.id] = {
-            "state": False,
-            "color_mode": "white",
-            "color_rgb": None,
-            "brightness": 80,
-            "color_temp": 50,
+        snap = auto_engine._snapshots[f"device:{bulb.id}"]
+        assert snap["brightness"] == 80
+        assert snap["color_temp"] == 50
+
+    def test_does_not_refire_while_still_raining(self, engine, session, bulb):
+        self._make_auto(session, "Rain: tint blue", "true", "set_color_rgb", bulb, action_value="#add8e6")
+        with (
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.is_raining", new=AsyncMock(return_value=True)),
+            patch("app.devices.tuya.send_command", new=AsyncMock()) as mock_cmd,
+            patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
+        ):
+            asyncio.run(auto_engine.check_weather_triggers())
+            asyncio.run(auto_engine.check_weather_triggers())
+        mock_cmd.assert_awaited_once()
+
+    def test_rain_stop_rule_restores_the_snapshot(self, engine, session, bulb):
+        auto_engine._snapshots[f"device:{bulb.id}"] = {
+            "state": True, "color_mode": "white", "color_rgb": None,
+            "brightness": 80, "color_temp": 50,
         }
+        self._make_auto(session, "Rain: restore", "false", "restore_snapshot", bulb)
         with (
-            patch("app.devices.tuya.engine", engine),
-            patch("app.services.automations.is_raining", new=AsyncMock(return_value=False)),
-            patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.is_raining", new=AsyncMock(return_value=False)),
+            patch("app.devices.tuya.send_command", new=AsyncMock()) as mock_cmd,
+            patch("app.devices.tuya.get_state", new=AsyncMock(return_value={
+                "online": True, "state": True, "brightness": 80, "color_temp": 50,
+                "color_mode": "white", "color_rgb": None,
+            })),
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
         ):
-            asyncio.run(auto_module.check_weather())
+            asyncio.run(auto_engine.check_weather_triggers())
 
-        assert auto_module._raining is False
-        assert bulb.id not in auto_module._saved
-        calls = [str(c) for c in mock_cmd.call_args_list]
-        assert any("False" in c for c in calls)
+        assert f"device:{bulb.id}" not in auto_engine._snapshots
+        mock_cmd.assert_awaited_once()
+        call_device, call_command = mock_cmd.call_args.args
+        assert call_device.id == bulb.id
+        assert call_command == {"state": True, "brightness": 80, "color_temp": 50}
 
-    def test_skips_without_location(self, engine):
+    def test_restore_is_a_no_op_without_a_prior_snapshot(self, engine, session, bulb):
+        # e.g. the app restarted between rain starting and stopping, so the
+        # in-memory snapshot from the "start" firing is gone — the documented
+        # trade-off of the dynamic-restore design; must not raise or guess.
+        self._make_auto(session, "Rain: restore", "false", "restore_snapshot", bulb)
         with (
-            patch("app.services.automations.is_raining", new=AsyncMock()) as mock_rain,
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.is_raining", new=AsyncMock(return_value=False)),
+            patch("app.devices.tuya.send_command", new=AsyncMock()) as mock_cmd,
+            patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
+        ):
+            asyncio.run(auto_engine.check_weather_triggers())
+        mock_cmd.assert_not_awaited()
+
+    def test_skips_without_location(self, engine, session, bulb):
+        self._make_auto(session, "Rain: tint blue", "true", "set_color_rgb", bulb, action_value="#add8e6")
+        with (
+            patch("app.services.automation_engine.is_raining", new=AsyncMock()) as mock_rain,
             patch.dict("os.environ", {"LAT": "0", "LON": "0"}),
         ):
-            asyncio.run(auto_module.check_weather())
+            asyncio.run(auto_engine.check_weather_triggers())
         mock_rain.assert_not_awaited()
 
-    def test_no_double_activation(self, engine, bulb):
-        auto_module._raining = True
+    def test_snapshot_before_captures_every_group_member(self, engine, session, tuya_bulb, z2m_bulb):
+        group = DeviceGroup(name="All bulbs", dimmable=True)
+        session.add(group)
+        session.commit()
+        session.refresh(group)
+        tuya_bulb.group_id = group.id
+        z2m_bulb.group_id = group.id
+        session.add(tuya_bulb)
+        session.add(z2m_bulb)
+        session.commit()
+
+        auto = Automation(
+            name="Rain: tint blue", enabled=True, trigger_type=TriggerType.weather,
+            trigger_field="raining", trigger_operator="eq", trigger_value="true",
+            action_group_id=group.id, action_type="set_color_rgb", action_value="#add8e6",
+            action_snapshot_before=True,
+        )
+        session.add(auto)
+        session.commit()
+
         with (
-            patch("app.devices.tuya.engine", engine),
-            patch("app.services.automations.is_raining", new=AsyncMock(return_value=True)),
-            patch("app.services.automations.tuya_client.send_command", new=AsyncMock()) as mock_cmd,
+            patch("app.services.automation_engine.engine", engine),
+            patch("app.services.automation_engine.is_raining", new=AsyncMock(return_value=True)),
+            patch("app.devices.tuya.get_state", new=AsyncMock(return_value={
+                "online": True, "state": True, "brightness": 100, "color_temp": 60,
+                "color_mode": "white", "color_rgb": None,
+            })),
+            patch("app.services.automation_engine.groups_service.send_group_command", new=AsyncMock()) as mock_send,
             patch.dict("os.environ", {"LAT": "36.44", "LON": "-5.27"}),
         ):
-            asyncio.run(auto_module.check_weather())
-        mock_cmd.assert_not_awaited()
+            asyncio.run(auto_engine.check_weather_triggers())
+
+        mock_send.assert_awaited_once()
+        # Tuya: live query (freshly mocked above), not the fixture's stale DB value.
+        assert auto_engine._snapshots[f"device:{tuya_bulb.id}"]["brightness"] == 100
+        # Zigbee: no live query available, so its last-known DB state is used.
+        assert auto_engine._snapshots[f"device:{z2m_bulb.id}"]["brightness"] == z2m_bulb.brightness
 
 
 class TestCheckStateTriggersDuringRedAlert:

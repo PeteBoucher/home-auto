@@ -63,10 +63,12 @@ class TestAllowNullActionDeviceId:
 
     def test_rebuilds_table_preserving_data_and_allows_null(self):
         engine = self._old_schema_engine_with_a_row()
-        # init_db() always adds action_group_id via a plain ALTER TABLE first —
-        # mirror that ordering here rather than assuming this function does it.
+        # init_db() always adds action_group_id/action_snapshot_before via plain
+        # ALTER TABLEs first — mirror that ordering rather than assuming this
+        # function does it.
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE automation ADD COLUMN action_group_id INTEGER"))
+            conn.execute(text("ALTER TABLE automation ADD COLUMN action_snapshot_before INTEGER NOT NULL DEFAULT 0"))
         with engine.begin() as conn:
             _allow_null_action_device_id(conn)
 

@@ -1253,6 +1253,84 @@ class TestAutomationGroupTarget:
         assert f'value="group:{group.id}" selected' in resp.text
 
 
+class TestAutomationWeatherTrigger:
+    """"Weather (rain)" trigger_type — replaces the old hardcoded rain
+    automation. Its own trigger_weather_value field maps to the generic
+    trigger_field="raining"/trigger_operator="eq"/trigger_value triple."""
+
+    def test_create_rain_starts_rule(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Rain: tint blue",
+            "enabled": "1",
+            "trigger_type": "weather",
+            "trigger_weather_value": "true",
+            "action_target": f"device:{z2m_bulb.id}",
+            "action_type": "set_color_rgb",
+            "action_value": "#add8e6",
+            "action_snapshot_before": "1",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Rain: tint blue")).first()
+        assert auto is not None
+        assert auto.trigger_field == "raining"
+        assert auto.trigger_operator == "eq"
+        assert auto.trigger_value == "true"
+        assert auto.action_snapshot_before is True
+
+    def test_create_rain_stops_rule(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        resp = client.post("/automations", data={
+            "name": "Rain: restore",
+            "enabled": "1",
+            "trigger_type": "weather",
+            "trigger_weather_value": "false",
+            "action_target": f"device:{z2m_bulb.id}",
+            "action_type": "restore_snapshot",
+        })
+        assert resp.status_code == 200
+        auto = session.exec(select(Automation).where(Automation.name == "Rain: restore")).first()
+        assert auto is not None
+        assert auto.trigger_value == "false"
+        assert auto.action_type == "restore_snapshot"
+        assert auto.action_snapshot_before is False
+
+    def test_row_shows_rain_starts_and_stops(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        session.add(Automation(
+            name="Rain: tint blue", enabled=True, trigger_type="weather",
+            trigger_field="raining", trigger_operator="eq", trigger_value="true",
+            action_device_id=z2m_bulb.id, action_type="set_color_rgb", action_value="#add8e6",
+        ))
+        session.add(Automation(
+            name="Rain: restore", enabled=True, trigger_type="weather",
+            trigger_field="raining", trigger_operator="eq", trigger_value="false",
+            action_device_id=z2m_bulb.id, action_type="restore_snapshot",
+        ))
+        session.commit()
+
+        resp = client.get("/automations")
+        assert "When rain starts" in resp.text
+        assert "When rain stops" in resp.text
+        assert "Restore" in resp.text and "to its previous state" in resp.text
+
+    def test_edit_form_preselects_rain_stops(self, client, z2m_bulb, session):
+        from app.devices.models import Automation
+        auto = Automation(
+            name="Rain: restore", enabled=True, trigger_type="weather",
+            trigger_field="raining", trigger_operator="eq", trigger_value="false",
+            action_device_id=z2m_bulb.id, action_type="restore_snapshot",
+        )
+        session.add(auto)
+        session.commit()
+        session.refresh(auto)
+
+        resp = client.get(f"/automations/{auto.id}/edit")
+        assert resp.status_code == 200
+        assert 'value="false" selected' in resp.text
+        assert 'value="restore_snapshot" selected' in resp.text
+
+
 class TestAutomationWithinTrigger:
     def test_create_captures_compare_field(self, client, z2m_bulb, session):
         from app.devices.models import Automation

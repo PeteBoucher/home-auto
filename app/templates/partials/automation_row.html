@@ -14,6 +14,10 @@
         {% elif off > 0 %}{{ off }} min after {{ auto.trigger_sun_event }}
         {% else %}{{ -off }} min before {{ auto.trigger_sun_event }}
         {% endif %}
+      {% elif auto.trigger_type == 'weather' %}
+        {% if auto.trigger_value == 'false' %}When rain stops
+        {% else %}When rain starts
+        {% endif %}
       {% elif auto.trigger_operator == 'within' %}
         When <span class="font-medium">{{ tdev.name if tdev else 'unknown device' }}</span>
         {{ field_labels.get(auto.trigger_field, auto.trigger_field) }}
@@ -37,7 +41,9 @@
       {% elif auto.action_type == 'set_brightness' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> brightness to {{ auto.action_value }}%
       {% elif auto.action_type == 'set_color_temp' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> colour temp to {{ auto.action_value }}
       {% elif auto.action_type == 'set_color_rgb' %}Set <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> colour to {{ auto.action_value }}
+      {% elif auto.action_type == 'restore_snapshot' %}Restore <span class="font-medium">{{ adev.name if adev else 'unknown' }}</span> to its previous state
       {% endif %}
+      {% if auto.action_snapshot_before %}(remembers current state first){% endif %}
     </p>
   </div>
   <div class="flex items-center gap-3 flex-shrink-0">

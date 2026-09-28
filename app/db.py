@@ -67,6 +67,7 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN time_in_range_updated_at TEXT",
             "ALTER TABLE device ADD COLUMN climate_widget_cutoff TEXT",
             "ALTER TABLE automation ADD COLUMN action_group_id INTEGER REFERENCES devicegroup(id)",
+            "ALTER TABLE automation ADD COLUMN action_snapshot_before INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -85,7 +86,7 @@ _AUTOMATION_COLUMNS = (
     "id", "name", "enabled", "trigger_type", "trigger_time", "trigger_device_id",
     "trigger_field", "trigger_operator", "trigger_value", "trigger_compare_field",
     "trigger_sun_event", "trigger_sun_offset", "trigger_window_start", "trigger_window_end",
-    "action_device_id", "action_group_id", "action_type", "action_value",
+    "action_device_id", "action_group_id", "action_type", "action_value", "action_snapshot_before",
 )
 
 
@@ -121,7 +122,8 @@ def _allow_null_action_device_id(conn) -> None:
             action_device_id INTEGER REFERENCES device(id),
             action_group_id INTEGER REFERENCES devicegroup(id),
             action_type VARCHAR NOT NULL,
-            action_value VARCHAR
+            action_value VARCHAR,
+            action_snapshot_before BOOLEAN NOT NULL DEFAULT 0
         )
     """))
     columns = ", ".join(_AUTOMATION_COLUMNS)
