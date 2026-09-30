@@ -19,7 +19,7 @@ class TestConfigureSqlite:
         conn = sqlite3.connect(str(tmp_path / "test.db"))
         try:
             _configure_sqlite(conn, None)
-            assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+            assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 15000
         finally:
             conn.close()
 

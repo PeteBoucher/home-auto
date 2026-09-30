@@ -10,7 +10,17 @@ from app.devices import mqtt as mqtt_client
 
 log = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+# APScheduler's default misfire_grace_time is 1 second: if a job's exact tick
+# is delayed past that (a GC pause, a slow synchronous DB write blocking the
+# loop for a moment, general Pi load) the run is silently skipped rather than
+# run late, logged only as a WARNING. For a 30s poll that's invisible — it just
+# catches up on the next tick — but for once-a-day jobs (refresh_sun_jobs,
+# the history rollup/prune) a single missed tick loses an entire day with no
+# retry until the next one. Found 2026-09-30: refresh_sun_jobs missed its one
+# daily tick, so neither that evening's sunset automations nor the next
+# morning's sunrise automation ever got (re)scheduled — no error, just silence.
+# A generous grace window lets a late tick still run instead of vanishing.
+scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 3600})
 
 
 

@@ -14,10 +14,20 @@ def _configure_sqlite(dbapi_connection, connection_record) -> None:
     collide retry internally for a few seconds instead of raising
     'database is locked' immediately — both needed since background tasks
     (MQTT listener, pollers) and HTTP request handlers write to the same
-    file concurrently."""
+    file concurrently.
+
+    busy_timeout was 5000 until 2026-09-30: a group command against a slow/
+    unresponsive Tuya device can hold its session open for up to ~10s (two
+    sequential tinytuya calls — send + get_state — each with a 5s
+    connection_timeout, see app/devices/tuya.py _TIMEOUT), which is longer
+    than a 5s busy_timeout. When that happened, a concurrent MQTT state
+    write (e.g. another group member confirming its own command) hit
+    'database is locked', got dropped by _listen()'s per-message catch, and
+    left that member desynced from the rest of the group — seen live as the
+    Lounge & Dining group flashing/partially responding to an off command."""
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=5000")
+    cursor.execute("PRAGMA busy_timeout=15000")
     cursor.close()
 
 
