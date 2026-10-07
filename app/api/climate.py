@@ -36,6 +36,7 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
     sensors = session.exec(select(Device).where(Device.type == DeviceType.sensor)).all()
     room_by_id = {d.id: (d.room or d.name) for d in sensors}
     widget_cutoff_by_id = {d.id: d.climate_widget_cutoff for d in sensors if d.climate_widget_cutoff}
+    widget_resume_by_id = {d.id: d.climate_widget_resume_at for d in sensors if d.climate_widget_resume_at}
     if room_by_id:
         samples = session.exec(
             select(ClimateSample).where(
@@ -47,9 +48,13 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             # A repurposed sensor's readings from after the repurpose (e.g. an
             # outdoor sensor moved into the filament dryer box) shouldn't be
             # folded into its old room's line here — see Device.climate_widget_cutoff.
+            # If it's since been moved back (climate_widget_resume_at set), only the
+            # readings from the repurposed window itself stay excluded.
             device_cutoff = widget_cutoff_by_id.get(s.device_id)
             if device_cutoff and s.timestamp >= device_cutoff:
-                continue
+                resume_at = widget_resume_by_id.get(s.device_id)
+                if resume_at is None or s.timestamp < resume_at:
+                    continue
             room = room_by_id[s.device_id]
             _add(room, s.timestamp, "temperature", s.temperature)
             _add(room, s.timestamp, "humidity", s.humidity)

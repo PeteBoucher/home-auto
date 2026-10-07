@@ -696,6 +696,28 @@ class TestClimateWidget:
         resp = client.get("/climate/data?hours=168")
         assert resp.json()["Study"]["temperature"] == [22.0]
 
+    def test_climate_widget_resume_at_folds_sensor_back_in(self, client, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        # Relative to now (not a fixed date) — see comment further up.
+        cutoff = datetime.utcnow() - timedelta(days=5)
+        resume_at = datetime.utcnow() - timedelta(days=1)
+        device = Device(
+            name="Outdoor Climate", room="Front yard", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_widget_cutoff=cutoff, climate_widget_resume_at=resume_at,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=18.0, timestamp=cutoff - timedelta(hours=1)))
+        session.add(ClimateSample(device_id=device.id, temperature=47.0, timestamp=cutoff + timedelta(hours=1)))
+        session.add(ClimateSample(device_id=device.id, temperature=12.0, timestamp=resume_at + timedelta(hours=1)))
+        session.commit()
+
+        resp = client.get("/climate/data?hours=168")
+        assert resp.json()["Front yard"]["temperature"] == [18.0, 12.0]
+
     def test_ac_humidity_is_null(self, client, session):
         from datetime import datetime
         from app.devices.models import AcSample, Device, DeviceType, Integration

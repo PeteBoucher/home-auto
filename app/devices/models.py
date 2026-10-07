@@ -80,6 +80,10 @@ class Device(SQLModel, table=True):
     # (e.g. an outdoor sensor moved into the filament dryer box) so its old room-labeled history stays visible
     # there but its new, differently-scaled readings don't get folded into that room's line. Per-device chart
     # (/devices/{id}/climate-chart) is unaffected — it always shows the sensor's full history.
+    climate_widget_resume_at: Optional[datetime] = None  # sensors: pairs with climate_widget_cutoff above —
+    # samples at/after THIS timestamp are folded back in even though they're after the cutoff, bounding the
+    # excluded span to the repurposed period instead of hiding the sensor from the widget forever once it's
+    # moved back to its original role. None means "still excluded", same as before this field existed.
     has_external_display: bool = Field(default=False)
     # sensor: hardware has a secondary on-screen field that can show a pushed
     # reading (the "EXT1" field on the SNZB-02DR2). Auto-set when the device
