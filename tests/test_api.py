@@ -749,6 +749,42 @@ class TestClimateWidget:
         assert data["Front yard"]["temperature"] == [26.0]
         assert data["Balcony"]["temperature"] == [19.0]
 
+    def test_outdoor_combined_carries_forward_last_reading_across_offset_reports(self, client, session):
+        from datetime import datetime, timedelta
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        # Real sensors report on independent, un-synced cycles — most buckets only get a fresh
+        # reading from one of the two. Balcony spikes in direct sun for a stretch; Front yard stays
+        # flat and shaded throughout. The combined line must track the true min (Front yard's held
+        # value) the whole time, not whichever sensor happens to have reported in a given bucket.
+        now = datetime.utcnow()
+        front = Device(
+            name="Outdoor Climate", room="Front yard", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_combine_outdoor=True,
+        )
+        balcony = Device(
+            name="Outdoor Climate", room="Balcony", device_id="s2",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_combine_outdoor=True,
+        )
+        session.add(front)
+        session.add(balcony)
+        session.commit()
+        session.refresh(front)
+        session.refresh(balcony)
+        session.add(ClimateSample(device_id=front.id, temperature=20.0, timestamp=now - timedelta(minutes=50)))
+        session.add(ClimateSample(device_id=balcony.id, temperature=20.5, timestamp=now - timedelta(minutes=45)))
+        session.add(ClimateSample(device_id=balcony.id, temperature=33.0, timestamp=now - timedelta(minutes=30)))
+        session.add(ClimateSample(device_id=balcony.id, temperature=35.0, timestamp=now - timedelta(minutes=15)))
+        session.add(ClimateSample(device_id=balcony.id, temperature=32.0, timestamp=now))
+        session.commit()
+
+        resp = client.get("/climate/data?hours=1")
+        temps = resp.json()["Outdoor (combined)"]["temperature"]
+        # Front yard never updates after its one reading, but its held value (20.0) must still win
+        # every bucket, since it's always cooler than whatever Balcony is doing.
+        assert all(t == 20.0 for t in temps)
+
     def test_unflagged_sensors_produce_no_combined_outdoor_line(self, client, session):
         from datetime import datetime
         from app.devices.models import ClimateSample, Device, DeviceType, Integration

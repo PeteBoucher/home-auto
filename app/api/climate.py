@@ -39,8 +39,9 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
     widget_resume_by_id = {d.id: d.climate_widget_resume_at for d in sensors if d.climate_widget_resume_at}
     combine_outdoor_ids = {d.id for d in sensors if d.climate_combine_outdoor}
     # per-device, per-bucket temperature readings for sensors flagged climate_combine_outdoor — kept
-    # separate from `buckets` (which is per-room) since several such sensors can share a room label.
-    combine_points: dict[datetime, list[float]] = {}
+    # separate from `buckets` (which is per-room, and per-device here since several such sensors can
+    # share a room label) so each device's own reports can be tracked independently before combining.
+    combine_device_points: dict[int, dict[datetime, list[float]]] = {}
     if room_by_id:
         samples = session.exec(
             select(ClimateSample).where(
@@ -64,13 +65,28 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             _add(room, s.timestamp, "humidity", s.humidity)
             if s.device_id in combine_outdoor_ids and s.temperature is not None:
                 bucket = _bucket_start(s.timestamp, bucket_seconds, cutoff)
-                combine_points.setdefault(bucket, []).append(s.temperature)
+                combine_device_points.setdefault(s.device_id, {}).setdefault(bucket, []).append(s.temperature)
 
-    # "Outdoor (combined)" — the lowest reading among the flagged sensors in each bucket, since direct
-    # sun only ever inflates a reading, never deflates one: whichever sensor isn't currently sun-struck
-    # is the closer-to-true-ambient one. See Device.climate_combine_outdoor.
-    for bucket, values in combine_points.items():
-        buckets.setdefault("Outdoor (combined)", {}).setdefault(bucket, {})["temperature"] = [min(values)]
+    # "Outdoor (combined)" — the lowest reading among the flagged sensors, since direct sun only ever
+    # inflates a reading, never deflates one: whichever sensor isn't currently sun-struck is the
+    # closer-to-true-ambient one. See Device.climate_combine_outdoor. Comparing bucket-for-bucket isn't
+    # enough on its own — these are sleepy sensors on independent, un-synced report cycles, so most
+    # buckets only ever have a fresh reading from one of them. Each device's last known reading is
+    # carried forward (same held-value assumption the raw per-room lines report under) so every bucket
+    # compares an actual pair of estimates rather than falling back to whichever sensor happened to
+    # report in that narrow slice — which, without this, trails whichever one reports more often.
+    if combine_device_points:
+        device_bucket_avg = {
+            dev_id: {b: sum(vals) / len(vals) for b, vals in dev_buckets.items()}
+            for dev_id, dev_buckets in combine_device_points.items()
+        }
+        all_combine_buckets = sorted({b for dev_series in device_bucket_avg.values() for b in dev_series})
+        last_known: dict[int, float] = {}
+        for bucket in all_combine_buckets:
+            for dev_id, dev_series in device_bucket_avg.items():
+                if bucket in dev_series:
+                    last_known[dev_id] = dev_series[bucket]
+            buckets.setdefault("Outdoor (combined)", {}).setdefault(bucket, {})["temperature"] = [min(last_known.values())]
 
     ac_ids = [d.id for d in session.exec(select(Device).where(Device.type == DeviceType.ac)).all()]
     if ac_ids:
