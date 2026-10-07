@@ -79,6 +79,7 @@ def init_db() -> None:
             "ALTER TABLE automation ADD COLUMN action_group_id INTEGER REFERENCES devicegroup(id)",
             "ALTER TABLE automation ADD COLUMN action_snapshot_before INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE device ADD COLUMN climate_widget_resume_at TEXT",
+            "ALTER TABLE device ADD COLUMN climate_combine_outdoor INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 conn.execute(text(stmt))

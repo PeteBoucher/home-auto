@@ -718,6 +718,53 @@ class TestClimateWidget:
         resp = client.get("/climate/data?hours=168")
         assert resp.json()["Front yard"]["temperature"] == [18.0, 12.0]
 
+    def test_outdoor_combined_takes_lowest_flagged_reading_per_bucket(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        now = datetime.utcnow()
+        front = Device(
+            name="Outdoor Climate", room="Front yard", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_combine_outdoor=True,
+        )
+        balcony = Device(
+            name="Outdoor Climate", room="Balcony", device_id="s2",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            climate_combine_outdoor=True,
+        )
+        session.add(front)
+        session.add(balcony)
+        session.commit()
+        session.refresh(front)
+        session.refresh(balcony)
+        # Morning: front yard is sun-inflated, balcony (shaded) is closer to true ambient.
+        session.add(ClimateSample(device_id=front.id, temperature=26.0, timestamp=now))
+        session.add(ClimateSample(device_id=balcony.id, temperature=19.0, timestamp=now))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        data = resp.json()
+        assert data["Outdoor (combined)"]["temperature"] == [19.0]
+        # Each sensor's own raw line is untouched alongside the combined one.
+        assert data["Front yard"]["temperature"] == [26.0]
+        assert data["Balcony"]["temperature"] == [19.0]
+
+    def test_unflagged_sensors_produce_no_combined_outdoor_line(self, client, session):
+        from datetime import datetime
+        from app.devices.models import ClimateSample, Device, DeviceType, Integration
+        device = Device(
+            name="Indoor Climate", room="Living room", device_id="s1",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+        )
+        session.add(device)
+        session.commit()
+        session.refresh(device)
+        session.add(ClimateSample(device_id=device.id, temperature=21.0, timestamp=datetime.utcnow()))
+        session.commit()
+
+        resp = client.get("/climate/data")
+        assert "Outdoor (combined)" not in resp.json()
+
     def test_ac_humidity_is_null(self, client, session):
         from datetime import datetime
         from app.devices.models import AcSample, Device, DeviceType, Integration

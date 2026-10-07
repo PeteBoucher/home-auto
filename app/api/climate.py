@@ -37,6 +37,10 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
     room_by_id = {d.id: (d.room or d.name) for d in sensors}
     widget_cutoff_by_id = {d.id: d.climate_widget_cutoff for d in sensors if d.climate_widget_cutoff}
     widget_resume_by_id = {d.id: d.climate_widget_resume_at for d in sensors if d.climate_widget_resume_at}
+    combine_outdoor_ids = {d.id for d in sensors if d.climate_combine_outdoor}
+    # per-device, per-bucket temperature readings for sensors flagged climate_combine_outdoor — kept
+    # separate from `buckets` (which is per-room) since several such sensors can share a room label.
+    combine_points: dict[datetime, list[float]] = {}
     if room_by_id:
         samples = session.exec(
             select(ClimateSample).where(
@@ -58,6 +62,15 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             room = room_by_id[s.device_id]
             _add(room, s.timestamp, "temperature", s.temperature)
             _add(room, s.timestamp, "humidity", s.humidity)
+            if s.device_id in combine_outdoor_ids and s.temperature is not None:
+                bucket = _bucket_start(s.timestamp, bucket_seconds, cutoff)
+                combine_points.setdefault(bucket, []).append(s.temperature)
+
+    # "Outdoor (combined)" — the lowest reading among the flagged sensors in each bucket, since direct
+    # sun only ever inflates a reading, never deflates one: whichever sensor isn't currently sun-struck
+    # is the closer-to-true-ambient one. See Device.climate_combine_outdoor.
+    for bucket, values in combine_points.items():
+        buckets.setdefault("Outdoor (combined)", {}).setdefault(bucket, {})["temperature"] = [min(values)]
 
     ac_ids = [d.id for d in session.exec(select(Device).where(Device.type == DeviceType.ac)).all()]
     if ac_ids:

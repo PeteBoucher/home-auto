@@ -84,6 +84,12 @@ class Device(SQLModel, table=True):
     # samples at/after THIS timestamp are folded back in even though they're after the cutoff, bounding the
     # excluded span to the repurposed period instead of hiding the sensor from the widget forever once it's
     # moved back to its original role. None means "still excluded", same as before this field existed.
+    climate_combine_outdoor: bool = Field(default=False)  # sensors: True for an outdoor sensor that only
+    # catches direct sun for part of the day (e.g. an east-facing spot warmed in the morning, a west-facing
+    # one in the afternoon), so its raw reading is solar-inflated some of the time. The dashboard's climate
+    # widget (app/api/climate.py) takes the lowest reading among all flagged sensors per time bucket as a
+    # synthetic "Outdoor (combined)" line — whichever one isn't in direct sun right now reads closer to true
+    # ambient — alongside, not instead of, each flagged sensor's own normal per-room line.
     has_external_display: bool = Field(default=False)
     # sensor: hardware has a secondary on-screen field that can show a pushed
     # reading (the "EXT1" field on the SNZB-02DR2). Auto-set when the device
