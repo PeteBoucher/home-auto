@@ -750,6 +750,11 @@ class TestClimateWidget:
         # Each sensor's own raw line is untouched alongside the combined one.
         assert data["Front yard"]["temperature"] == [26.0]
         assert data["Balcony"]["temperature"] == [19.0]
+        # Flagged sensors' own lines are marked as raw combine inputs (the dashboard renders these as
+        # points rather than a line); the synthetic combined line and unrelated rooms are not.
+        assert data["Front yard"]["is_combine_input"] is True
+        assert data["Balcony"]["is_combine_input"] is True
+        assert data["Outdoor (combined)"]["is_combine_input"] is False
 
     def test_outdoor_combined_carries_forward_last_reading_across_offset_reports(self, client, session):
         from datetime import datetime, timedelta
@@ -801,7 +806,9 @@ class TestClimateWidget:
         session.commit()
 
         resp = client.get("/climate/data")
-        assert "Outdoor (combined)" not in resp.json()
+        data = resp.json()
+        assert "Outdoor (combined)" not in data
+        assert data["Living room"]["is_combine_input"] is False
 
     def test_ac_humidity_is_null(self, client, session):
         from datetime import datetime

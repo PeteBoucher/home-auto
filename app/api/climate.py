@@ -103,6 +103,11 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             for b in order
         ]
 
+    # Rooms whose line is a raw input into "Outdoor (combined)" above — the dashboard draws these as
+    # scattered points rather than a connected line, so the solid combined line reads clearly instead
+    # of being drawn over by (or drawing over) a same-valued raw input's own line.
+    combine_outdoor_room_labels = {room_by_id[dev_id] for dev_id in combine_outdoor_ids if dev_id in room_by_id}
+
     result = {}
     for label, points in buckets.items():
         order = sorted(points)
@@ -110,5 +115,6 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
             "timestamps": [b.isoformat() for b in order],
             "temperature": _series(points, "temperature", order),
             "humidity": _series(points, "humidity", order),
+            "is_combine_input": label in combine_outdoor_room_labels,
         }
     return result

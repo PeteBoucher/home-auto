@@ -60,7 +60,19 @@
       const points = metric => series.timestamps.map((t, j) => ({ x: new Date(t + 'Z'), y: series[metric][j] }));
       const borderWidth = CLIMATE_WIDGET_BOLD_LABELS.includes(label) ? 3 : 1.5;
       if (series.temperature.some(v => v !== null)) {
-        datasets.push({
+        // Raw inputs into "Outdoor (combined)" are plotted as scattered points rather than a
+        // connected line — they often share the same value as the combined line (whichever one
+        // isn't currently sun-struck), so a solid line here would draw directly over, or be drawn
+        // over by, the combined line instead of reading as a separate, raw reference series.
+        datasets.push(series.is_combine_input ? {
+          label,
+          data: points('temperature'),
+          borderColor: color,
+          backgroundColor: color,
+          showLine: false,
+          pointRadius: 2.5,
+          yAxisID: 'y',
+        } : {
           label,
           data: points('temperature'),
           borderColor: color,
