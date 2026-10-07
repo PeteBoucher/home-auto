@@ -586,7 +586,7 @@ class TestClimateWidget:
         resp = client.get("/climate/data")
         assert list(resp.json().keys()) == ["Unassigned Sensor"]
 
-    def test_ac_indoor_outdoor_included(self, client, session):
+    def test_ac_indoor_included_outdoor_excluded(self, client, session):
         from datetime import datetime
         from app.devices.models import AcSample, Device, DeviceType, Integration
         ac = Device(name="Living Room A/C", device_id="ac-1", type=DeviceType.ac, integration=Integration.hon)
@@ -599,7 +599,9 @@ class TestClimateWidget:
         resp = client.get("/climate/data")
         data = resp.json()
         assert data["AC Indoor"]["temperature"] == [23.0]
-        assert data["AC Outdoor"]["temperature"] == [31.0]
+        # The A/C's outdoor reading is dropped from the widget — it's rarely running, so that
+        # line was mostly stale.
+        assert "AC Outdoor" not in data
 
     def test_respects_hours_window(self, client, session):
         from datetime import datetime, timedelta
@@ -814,7 +816,6 @@ class TestClimateWidget:
         resp = client.get("/climate/data")
         data = resp.json()
         assert data["AC Indoor"]["humidity"] == [None]
-        assert data["AC Outdoor"]["humidity"] == [None]
 
 
 class TestPowerChart:

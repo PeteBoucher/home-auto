@@ -17,10 +17,11 @@ def _bucket_start(ts: datetime, bucket_seconds: int, epoch: datetime) -> datetim
 @router.get("/data")
 async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, le=168)):
     """Temperature + humidity series for every climate sensor's room, plus the
-    A/C's own indoor/outdoor temperature, bucketed and averaged so multiple
-    sensors sharing a room collapse into one line per room instead of
-    overlapping raw noise. The A/C doesn't report humidity, so its series
-    just carry nulls there."""
+    A/C's own indoor temperature, bucketed and averaged so multiple sensors
+    sharing a room collapse into one line per room instead of overlapping raw
+    noise. The A/C doesn't report humidity, so its series just carry nulls
+    there. The A/C's outdoor reading is deliberately left out — it's rarely
+    running now, so that line is mostly stale."""
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     bucket_seconds = max(60, hours * 3600 // 150)
 
@@ -95,7 +96,6 @@ async def climate_data(session: SessionDep, hours: int = Query(default=6, ge=1, 
         ).all()
         for s in ac_samples:
             _add("AC Indoor", s.timestamp, "temperature", s.indoor_temp)
-            _add("AC Outdoor", s.timestamp, "temperature", s.outdoor_temp)
 
     def _series(points: dict[datetime, dict[str, list[float]]], metric: str, order: list[datetime]) -> list[float | None]:
         return [
