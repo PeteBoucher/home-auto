@@ -8,6 +8,15 @@ from sqlmodel.pool import StaticPool
 from app.devices.models import Automation, ClimateSample, Device, DeviceType, Integration, PowerSample, Schedule  # noqa: F401 — all models imported so SQLModel.metadata.create_all creates their tables
 
 
+@pytest.fixture(autouse=True)
+def _clear_group_settling():
+    # Module-level, keyed by device id — and every test's fresh DB reuses ids.
+    from app.services import groups
+    groups._settling_until.clear()
+    yield
+    groups._settling_until.clear()
+
+
 @pytest.fixture(name="engine")
 def engine_fixture():
     engine = create_engine(

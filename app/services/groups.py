@@ -1,9 +1,36 @@
+import time
+from collections.abc import Iterable
+
 from sqlmodel import Session, select
 
 from app.db import engine
 from app.devices.models import Device, DeviceGroup, Integration
 from app.devices import mqtt as mqtt_client
 from app.services.device_commands import apply_device_command
+
+# How long after we command a group member its own reports are treated as
+# echoes of that command rather than as a fresh change to fan out — see
+# propagate_member_change(). Generous on purpose: a Tuya poll already in
+# flight when the command went out can take 5s to come back with the
+# pre-command state, and the Pi's event loop isn't always prompt.
+_SETTLE_SECONDS = 10
+_settling_until: dict[int, float] = {}  # device id → time.monotonic() deadline
+
+
+def _mark_settling(device_ids: Iterable[int]) -> None:
+    deadline = time.monotonic() + _SETTLE_SECONDS
+    for device_id in device_ids:
+        _settling_until[device_id] = deadline
+
+
+def _is_settling(device_id: int) -> bool:
+    deadline = _settling_until.get(device_id)
+    if deadline is None:
+        return False
+    if time.monotonic() >= deadline:
+        del _settling_until[device_id]
+        return False
+    return True
 
 
 async def create_group(session: Session, name: str, device_ids: list[int]) -> DeviceGroup:
@@ -65,29 +92,39 @@ async def send_group_command(session: Session, group: DeviceGroup, command: dict
 
     Commanding the group is treated as re-syncing it: any member previously
     detached via group_override (see propagate_member_change) rejoins.
+
+    Every DB write is committed *before* any network I/O. A flushed-but-
+    uncommitted write holds SQLite's write lock, and holding it across an
+    await (the Tuya round-trip below can take seconds) deadlocks the app
+    against itself: the next writer on the event loop — typically the MQTT
+    listener applying a Zigbee member's confirmation — blocks the whole loop
+    in busy_timeout, so this coroutine can never resume to commit and release
+    it. That froze everything for the full 15s on every group command, then
+    dropped the waiting write (see project.md "Known Gotchas").
     """
     members = list(session.exec(select(Device).where(Device.group_id == group.id)).all())
+    zigbee_group_name = group.zigbee_group_name
     zigbee_members = [m for m in members if m.integration == Integration.zigbee2mqtt]
     other_members = [m for m in members if m.integration != Integration.zigbee2mqtt]
+    groupcast = bool(zigbee_members and zigbee_group_name)
 
-    if zigbee_members and group.zigbee_group_name:
-        payload = mqtt_client.build_set_payload(command)
-        if payload:
-            await mqtt_client.publish(f"{mqtt_client.PREFIX}/{group.zigbee_group_name}/set", payload)
-        for m in zigbee_members:
+    for m in members:
+        if groupcast and m.integration == Integration.zigbee2mqtt:
             _apply_command_locally(m, command)
-            m.group_override = False
-            session.add(m)
-        session.commit()
-
-    for m in other_members:
         m.group_override = False
         session.add(m)
-        await apply_device_command(session, m, command)
-
     _apply_command_locally(group, command)
     session.add(group)
     session.commit()
+    _mark_settling(m.id for m in members)
+
+    if groupcast:
+        payload = mqtt_client.build_set_payload(command)
+        if payload:
+            await mqtt_client.publish(f"{mqtt_client.PREFIX}/{zigbee_group_name}/set", payload)
+
+    for m in other_members:
+        await apply_device_command(session, m, command)
 
 
 def _apply_command_locally(target, command: dict) -> None:
@@ -125,7 +162,16 @@ async def propagate_member_change(device_id: int) -> None:
     deliberately taken out of sync via its own card — e.g. for task lighting —
     and neither pushes its own changes to the group nor receives them, until
     the group itself is next commanded (send_group_command clears the flag).
+
+    A report from a member we commanded ourselves in the last _SETTLE_SECONDS
+    is an echo, not a change, and is not fanned out. Without that, two members
+    whose reports cross (one still confirming an older command while the
+    other confirms a newer one) each push their own state onto the other,
+    whose confirmation then pushes it straight back — the group flips on/off
+    a couple of times a second indefinitely.
     """
+    if _is_settling(device_id):
+        return
     with Session(engine) as session:
         device = session.get(Device, device_id)
         if not device or not device.group_id or device.group_override:
@@ -163,4 +209,5 @@ async def propagate_member_change(device_id: int) -> None:
                     if device.brightness is not None and sib.brightness != device.brightness:
                         command["brightness"] = device.brightness
             if command:
+                _mark_settling([sib.id])
                 await apply_device_command(session, sib, command)
