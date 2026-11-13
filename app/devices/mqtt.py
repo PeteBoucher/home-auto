@@ -90,15 +90,24 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
             device.state = str(payload["state"]).upper() == "ON"
         if "brightness" in payload:
             device.brightness = round(int(payload["brightness"]) / 2.54)
-        if "color_temp" in payload:
+        if "color_mode" in payload and payload["color_mode"] in ("color_temp", "xy", "hs"):
+            device.color_mode = "white" if payload["color_mode"] == "color_temp" else "colour"
+        # Z2M reports BOTH `color` and `color_temp` on every update, whichever
+        # mode the bulb is in — the inactive one is just Z2M's conversion of the
+        # active one (in white mode `color` is the white temp's hue; in colour
+        # mode `color_temp` is a clamped approximation). Only store the field
+        # that's real for the current mode, so the other one keeps the user's
+        # last choice and switching modes restores it (same as a group does).
+        if "color_temp" in payload and device.color_mode != "colour":
             device.color_temp = mireds_to_pct(float(payload["color_temp"]))
-        if "color" in payload and isinstance(payload["color"], dict) and "hue" in payload["color"]:
+        if (
+            "color" in payload and isinstance(payload["color"], dict) and "hue" in payload["color"]
+            and device.color_mode == "colour"
+        ):
             device.color_rgb = hs_to_rgb_hex(
                 payload["color"]["hue"], payload["color"].get("saturation", 100),
                 round((device.brightness or 100) * 2.54),
             )
-        if "color_mode" in payload and payload["color_mode"] in ("color_temp", "xy", "hs"):
-            device.color_mode = "white" if payload["color_mode"] == "color_temp" else "colour"
         if "power_on_behavior" in payload:
             device.power_on_behavior = str(payload["power_on_behavior"])
         if "overload_protection" in payload and isinstance(payload["overload_protection"], dict):
