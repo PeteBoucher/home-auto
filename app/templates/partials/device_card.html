@@ -79,7 +79,10 @@
       name="source_id"
       class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
     >
-      <option value="" {% if not device.display_source_id %}selected{% endif %}>Off</option>
+      <option value="" {% if not device.display_source_id and not device.display_outdoor_combined %}selected{% endif %}>Off</option>
+      {% if other_sensors | selectattr('climate_combine_outdoor') | list | length > 1 %}
+      <option value="outdoor_combined" {% if device.display_outdoor_combined %}selected{% endif %}>Outdoor (combined) — lowest outdoor sensor</option>
+      {% endif %}
       {% for s in other_sensors %}
       <option value="{{ s.id }}" {% if device.display_source_id == s.id %}selected{% endif %}>{{ s.room + ' — ' if s.room else '' }}{{ s.name }}</option>
       {% endfor %}

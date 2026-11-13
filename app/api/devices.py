@@ -509,10 +509,11 @@ async def display_source_route(device_id: int, request: Request, session: Sessio
         raise HTTPException(status_code=400, detail="This sensor has no secondary on-screen field")
     form = await request.form()
     raw = form.get("source_id")
-    source_id = int(str(raw)) if raw else None
+    outdoor_combined = raw == "outdoor_combined"
+    source_id = int(str(raw)) if raw and not outdoor_combined else None
     if source_id == device.id:
         raise HTTPException(status_code=400, detail="A sensor can't display its own reading as its source")
-    await set_display_source(session, device, source_id)
+    await set_display_source(session, device, source_id, outdoor_combined=outdoor_combined)
     session.refresh(device)
     devices = list(session.exec(select(Device)).all())
     schedule = _get_schedule(device.id, session)

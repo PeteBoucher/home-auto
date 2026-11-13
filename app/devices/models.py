@@ -99,6 +99,12 @@ class Device(SQLModel, table=True):
     # sensor: feed another sensor's reading into THIS device's secondary on-screen
     # field (its own reading stays primary), via the external_temperature/
     # external_humidity + temperature_sensor_select datapoints
+    display_outdoor_combined: bool = Field(default=False)
+    # sensor: instead of one fixed source, feed THIS device's secondary on-screen field
+    # whichever online climate_combine_outdoor sensor currently reads lowest — the live
+    # equivalent of the climate widget's "Outdoor (combined)" line, so the screen
+    # switches between e.g. the east- and west-facing sensors as the sun moves.
+    # Mutually exclusive with display_source_id.
 
 
 class DeviceGroup(SQLModel, table=True):

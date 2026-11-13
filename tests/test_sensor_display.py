@@ -89,3 +89,95 @@ class TestSyncDisplayTargets:
              patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
             asyncio.run(sensor_display.sync_display_targets(99999))
         mock_pub.assert_not_awaited()
+
+
+@pytest.fixture(name="balcony_sensor")
+def balcony_sensor_fixture(session):
+    device = Device(
+        name="Temp/Humidity", room="Balcony", device_id="balcony_sensor",
+        type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+        online=True, sensor_temperature=24.1, humidity=60.0, climate_combine_outdoor=True,
+    )
+    session.add(device)
+    session.commit()
+    session.refresh(device)
+    return device
+
+
+@pytest.fixture(name="combined_setup")
+def combined_setup_fixture(session, outdoor_sensor, balcony_sensor, display_sensor):
+    outdoor_sensor.climate_combine_outdoor = True
+    display_sensor.display_outdoor_combined = True
+    session.add(outdoor_sensor)
+    session.add(display_sensor)
+    session.commit()
+    return outdoor_sensor, balcony_sensor, display_sensor
+
+
+class TestOutdoorCombinedDisplay:
+    def test_setting_combined_pushes_lowest_outdoor_reading(self, session, outdoor_sensor, balcony_sensor, display_sensor):
+        outdoor_sensor.climate_combine_outdoor = True
+        session.add(outdoor_sensor)
+        session.commit()
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(sensor_display.set_display_source(session, display_sensor, None, outdoor_combined=True))
+
+        session.refresh(display_sensor)
+        assert display_sensor.display_outdoor_combined is True
+        assert display_sensor.display_source_id is None
+        calls = [c.args for c in mock_pub.await_args_list]
+        assert ("zigbee2mqtt/living_room_sensor/set", {"temperature_sensor_select": "external"}) in calls
+        assert ("zigbee2mqtt/living_room_sensor/set", {"external_temperature": 24.1, "external_humidity": 60.0}) in calls
+
+    def test_picking_a_single_source_clears_combined(self, session, combined_setup):
+        outdoor_sensor, _, display_sensor = combined_setup
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()):
+            asyncio.run(sensor_display.set_display_source(session, display_sensor, outdoor_sensor.id))
+        session.refresh(display_sensor)
+        assert display_sensor.display_outdoor_combined is False
+        assert display_sensor.display_source_id == outdoor_sensor.id
+
+    def test_switches_to_whichever_sensor_is_now_lowest(self, engine, session, combined_setup):
+        outdoor_sensor, balcony_sensor, _ = combined_setup
+        # Afternoon: the west-facing balcony catches the sun, front yard is now the cooler one.
+        balcony_sensor.sensor_temperature = 35.0
+        outdoor_sensor.sensor_temperature = 22.0
+        outdoor_sensor.humidity = 55.0
+        session.add(balcony_sensor)
+        session.add(outdoor_sensor)
+        session.commit()
+
+        with patch("app.services.sensor_display.engine", engine), \
+             patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(sensor_display.sync_display_targets(balcony_sensor.id))
+
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/living_room_sensor/set", {"external_temperature": 22.0, "external_humidity": 55.0}
+        )
+
+    def test_offline_sensor_is_ignored(self, engine, session, combined_setup):
+        outdoor_sensor, balcony_sensor, _ = combined_setup
+        balcony_sensor.online = False  # last reading 24.1 is lower, but stale
+        session.add(balcony_sensor)
+        session.commit()
+
+        with patch("app.services.sensor_display.engine", engine), \
+             patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(sensor_display.sync_display_targets(outdoor_sensor.id))
+
+        mock_pub.assert_awaited_once_with(
+            "zigbee2mqtt/living_room_sensor/set", {"external_temperature": 32.7, "external_humidity": 51.2}
+        )
+
+    def test_non_outdoor_source_does_not_push_to_combined_targets(self, engine, session, combined_setup):
+        other = Device(
+            name="Temp/Humidity", room="Study", device_id="study_sensor",
+            type=DeviceType.sensor, integration=Integration.zigbee2mqtt,
+            online=True, sensor_temperature=21.0,
+        )
+        session.add(other)
+        session.commit()
+        with patch("app.services.sensor_display.engine", engine), \
+             patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()) as mock_pub:
+            asyncio.run(sensor_display.sync_display_targets(other.id))
+        mock_pub.assert_not_awaited()
