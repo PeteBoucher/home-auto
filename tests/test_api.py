@@ -256,11 +256,17 @@ class TestInferType:
         assert z2m_bulb.color_rgb == "#ff0000"
         assert z2m_bulb.color_mode == "colour"
 
-    def test_color_mode_toggle_alone_does_not_publish(self, client, z2m_bulb, session):
+    def test_color_mode_toggle_alone_switches_the_bulb(self, client, z2m_bulb, session):
+        # Zigbee has no settable mode — the toggle must re-send the last colour,
+        # otherwise the bulb doesn't switch until a slider is nudged.
+        z2m_bulb.color_rgb = "#0000ff"
+        session.add(z2m_bulb)
+        session.commit()
         with patch("app.api.devices.mqtt_client.publish", new=AsyncMock()) as mock_pub:
             resp = client.post(f"/devices/{z2m_bulb.id}/command", data={"color_mode": "colour"})
         assert resp.status_code == 200
-        mock_pub.assert_not_awaited()
+        mock_pub.assert_awaited_once()
+        assert mock_pub.await_args.args[1] == {"color": {"hue": 240, "saturation": 100}}
         session.refresh(z2m_bulb)
         assert z2m_bulb.color_mode == "colour"
 

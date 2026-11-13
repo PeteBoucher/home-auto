@@ -119,7 +119,7 @@ async def send_group_command(session: Session, group: DeviceGroup, command: dict
     _mark_settling(m.id for m in members)
 
     if groupcast:
-        payload = mqtt_client.build_set_payload(command)
+        payload = mqtt_client.build_set_payload(command, group)
         if payload:
             await mqtt_client.publish(f"{mqtt_client.PREFIX}/{zigbee_group_name}/set", payload)
 

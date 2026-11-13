@@ -127,17 +127,19 @@ class TestSendGroupCommand:
         session.refresh(tuya_bulb)
         assert tuya_bulb.state is True
 
-    def test_color_mode_alone_does_not_publish(self, session, z2m_bulb):
+    def test_color_mode_alone_switches_the_group(self, session, z2m_bulb):
         with patch("app.services.groups.mqtt_client.create_zigbee_group", new=AsyncMock()), \
              patch("app.services.groups.mqtt_client.add_group_member", new=AsyncMock()):
             group = asyncio.run(groups_service.create_group(session, "Lights", [z2m_bulb.id]))
 
         with patch("app.services.groups.mqtt_client.publish", new=AsyncMock()) as mock_pub:
-            asyncio.run(groups_service.send_group_command(session, group, {"color_mode": "colour"}))
+            asyncio.run(groups_service.send_group_command(session, group, {"color_mode": "white"}))
 
-        mock_pub.assert_not_awaited()
+        # Zigbee has no settable mode — the group's last colour temp is re-sent.
+        mock_pub.assert_awaited_once()
+        assert "color_temp" in mock_pub.await_args.args[1]
         session.refresh(group)
-        assert group.color_mode == "colour"
+        assert group.color_mode == "white"
 
 
 class TestPropagateMemberChange:

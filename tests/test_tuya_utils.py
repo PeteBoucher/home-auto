@@ -1,7 +1,10 @@
 """Unit tests for pure helper functions in tuya.py."""
 import pytest
 
-from app.devices.tuya import _dps_get, _hsv_hex_to_rgb_hex, _rgb_hex_to_hsv_hex
+from unittest.mock import MagicMock, patch
+
+from app.devices.models import Device, DeviceType, Integration
+from app.devices.tuya import _command_to_dps, _dps_get, _hsv_hex_to_rgb_hex, _rgb_hex_to_hsv_hex, _send_command_sync
 
 
 class TestDpsGet:
@@ -67,3 +70,53 @@ class TestRoundTrip:
         assert len(hsv) == 12
         result = _hsv_hex_to_rgb_hex(hsv)
         assert result == rgb
+
+
+def _dev(type_=DeviceType.bulb):
+    return Device(name="Lamp", type=type_, integration=Integration.tuya, device_id="<device_id>",
+                  ip_address="192.168.x.x", local_key="<local_key>", protocol_version="3.5")
+
+
+class TestCommandToDps:
+    def test_bulb_off_uses_dps_20(self):
+        assert _command_to_dps(_dev(), {"state": False}) == {20: False}
+
+    def test_plug_on_uses_dps_1(self):
+        assert _command_to_dps(_dev(DeviceType.plug), {"state": True}) == {1: True}
+
+    def test_plug_ignores_bulb_fields(self):
+        assert _command_to_dps(_dev(DeviceType.plug), {"brightness": 50}) == {}
+
+    def test_colour_temp_forces_white_mode(self):
+        assert _command_to_dps(_dev(), {"color_temp": 30, "brightness": 50}) == {22: 500, 21: "white", 23: 300}
+
+    def test_rgb_forces_colour_mode(self):
+        assert _command_to_dps(_dev(), {"color_rgb": "#ff0000"}) == {21: "colour", 24: "000003e803e8"}
+
+    def test_mode_only(self):
+        assert _command_to_dps(_dev(), {"color_mode": "white"}) == {21: "white"}
+
+
+class TestSendCommandSync:
+    """The whole command goes out as one packet — each extra tinytuya call is
+    a fresh connection + protocol-3.5 handshake (~1s on the Pi), and
+    turn_on/turn_off add a hidden status() probe before sending."""
+
+    def test_sends_single_packet_without_turn_off(self):
+        fake = MagicMock()
+        with patch("app.devices.tuya._make_device", return_value=fake):
+            _send_command_sync(_dev(), {"state": False})
+        fake.set_multiple_values.assert_called_once_with({20: False})
+        fake.turn_off.assert_not_called()
+        fake.set_value.assert_not_called()
+
+    def test_colour_change_is_one_packet(self):
+        fake = MagicMock()
+        with patch("app.devices.tuya._make_device", return_value=fake):
+            _send_command_sync(_dev(), {"state": True, "color_rgb": "#0000ff"})
+        fake.set_multiple_values.assert_called_once_with({20: True, 21: "colour", 24: "00f003e803e8"})
+
+    def test_empty_command_opens_no_connection(self):
+        with patch("app.devices.tuya._make_device") as make:
+            _send_command_sync(_dev(DeviceType.plug), {"brightness": 50})
+        make.assert_not_called()

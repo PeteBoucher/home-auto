@@ -155,8 +155,31 @@ def _apply_state(friendly_name: str, payload: dict, online: bool = True) -> tupl
         }
 
 
-def build_set_payload(command: dict) -> dict:
-    """Translate the app's device-command format into a Z2M `/set` payload."""
+def build_set_payload(command: dict, current=None) -> dict:
+    """Translate the app's device-command format into a Z2M `/set` payload.
+
+    `current` is the Device/DeviceGroup being commanded. Zigbee has no
+    settable "colour mode" — a bulb only switches mode when it's sent a
+    `color_temp` or a `color` — so a bare White/Colour toggle
+    (`{"color_mode": ...}` with neither) re-sends the target's last-known
+    colour temp or colour. Without this the payload was empty, nothing was
+    published, and the bulb stayed in its old mode until the user nudged a
+    slider. Fallbacks match the card's own slider/picker defaults.
+    """
+    mode = command.get("color_mode")
+    if mode and "color_temp" not in command and "color_rgb" not in command:
+        command = dict(command)
+        if mode == "white":
+            last = getattr(current, "color_temp", None)
+            command["color_temp"] = last if last is not None else 50
+        elif mode == "colour":
+            hue, saturation, _ = rgb_hex_to_hs_brightness(getattr(current, "color_rgb", None) or "#ffffff")
+            payload = build_set_payload({k: v for k, v in command.items() if k != "color_mode"})
+            # Hue/saturation only — the stored hex encodes brightness too, and
+            # a mode switch shouldn't change how bright the bulb is.
+            payload["color"] = {"hue": hue, "saturation": saturation}
+            return payload
+
     payload: dict = {}
     if "state" in command:
         payload["state"] = "ON" if command["state"] else "OFF"

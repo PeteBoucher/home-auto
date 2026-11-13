@@ -151,7 +151,7 @@ async def _fire(automation: Automation) -> None:
         elif device.integration == Integration.tuya:
             await tuya_client.send_command(device, command)
         elif device.integration == Integration.zigbee2mqtt:
-            payload = mqtt_client.build_set_payload(command)
+            payload = mqtt_client.build_set_payload(command, device)
             if payload:
                 await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
         elif device.integration == Integration.hon:
