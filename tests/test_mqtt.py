@@ -213,6 +213,32 @@ class TestApplyState:
         assert d.color_rgb == "#ff0000"
         assert d.color_mode == "colour"
 
+    def test_white_mode_report_keeps_last_colour(self, engine, session, z2m_bulb):
+        # Z2M sends a `color` in white mode too — the white temp's hue, not a
+        # colour the user chose. It must not overwrite the remembered colour.
+        z2m_bulb.color_rgb = "#0000ff"
+        session.add(z2m_bulb)
+        session.commit()
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_bulb", {
+                "color": {"hue": 32, "saturation": 81}, "color_mode": "color_temp", "color_temp": 363,
+            })
+        d = _refresh(session, z2m_bulb)
+        assert d.color_rgb == "#0000ff"
+        assert d.color_mode == "white"
+
+    def test_colour_mode_report_keeps_last_white_temp(self, engine, session, z2m_bulb):
+        z2m_bulb.color_temp = 20
+        session.add(z2m_bulb)
+        session.commit()
+        with patch("app.devices.mqtt.engine", engine):
+            _apply_state("test_bulb", {
+                "color": {"hue": 258, "saturation": 81}, "color_mode": "xy", "color_temp": 150,
+            })
+        d = _refresh(session, z2m_bulb)
+        assert d.color_temp == 20
+        assert d.color_mode == "colour"
+
     def test_ignores_non_z2m_device(self, engine, session):
         # A Tuya device with the same device_id should not be updated
         from app.devices.models import DeviceType
