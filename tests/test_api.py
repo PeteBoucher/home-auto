@@ -373,6 +373,17 @@ class TestDisplaySource:
         session.refresh(ext_sensor)
         assert ext_sensor.display_source_id is None
 
+    def test_sets_outdoor_combined(self, client, ext_sensor, second_sensor, session):
+        ext_sensor.display_source_id = second_sensor.id
+        session.add(ext_sensor)
+        session.commit()
+        with patch("app.services.sensor_display.mqtt_client.publish", new=AsyncMock()):
+            resp = client.post(f"/devices/{ext_sensor.id}/display-source", data={"source_id": "outdoor_combined"})
+        assert resp.status_code == 200
+        session.refresh(ext_sensor)
+        assert ext_sensor.display_outdoor_combined is True
+        assert ext_sensor.display_source_id is None
+
     def test_cannot_target_self(self, client, ext_sensor):
         resp = client.post(f"/devices/{ext_sensor.id}/display-source", data={"source_id": str(ext_sensor.id)})
         assert resp.status_code == 400
