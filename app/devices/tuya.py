@@ -71,21 +71,42 @@ def _get_state_sync(device: Device) -> dict[str, Any]:
         return {"online": False, "state": False, "brightness": None}
 
 
+def _command_to_dps(device: Device, command: dict[str, Any]) -> dict[int, Any]:
+    """Translate an app command into the DPS values to write, for one packet."""
+    if device.type != DeviceType.bulb:
+        return {1: bool(command["state"])} if "state" in command else {}
+    dps: dict[int, Any] = {}
+    if "state" in command:
+        dps[20] = bool(command["state"])
+    if "brightness" in command:
+        dps[22] = max(10, command["brightness"] * 10)
+    if "color_mode" in command:
+        dps[21] = command["color_mode"]
+    if "color_temp" in command:
+        dps[21] = "white"
+        dps[23] = max(0, min(1000, command["color_temp"] * 10))
+    if "color_rgb" in command:
+        dps[21] = "colour"
+        dps[24] = _rgb_hex_to_hsv_hex(command["color_rgb"])
+    return dps
+
+
 def _send_command_sync(device: Device, command: dict[str, Any]) -> None:
+    """Write the whole command as ONE packet over ONE connection.
+
+    Every fresh tinytuya connection does a full protocol-3.5 session-key
+    handshake, and the bulb sometimes takes ~1s to accept a new one (measured
+    on the Pi 2026-11-13). The old code paid that per DPS — a colour change was
+    3 connections — and `BulbDevice.turn_on/turn_off` add a hidden extra
+    `status()` round trip first (`detect_bulb()`) before sending. Explicit DPS
+    numbers via `set_multiple_values` skip both.
+    """
+    dps = _command_to_dps(device, command)
+    if not dps:
+        return
     d = _make_device(device)
     try:
-        if "state" in command:
-            d.turn_on() if command["state"] else d.turn_off()
-        if "brightness" in command and device.type == DeviceType.bulb:
-            d.set_value(22, max(10, command["brightness"] * 10))
-        if "color_temp" in command and device.type == DeviceType.bulb:
-            d.set_value(21, "white")
-            d.set_value(23, max(0, min(1000, command["color_temp"] * 10)))
-        if "color_mode" in command and device.type == DeviceType.bulb:
-            d.set_value(21, command["color_mode"])
-        if "color_rgb" in command and device.type == DeviceType.bulb:
-            d.set_value(21, "colour")
-            d.set_value(24, _rgb_hex_to_hsv_hex(command["color_rgb"]))
+        d.set_multiple_values(dps)
     except Exception:
         pass
 

@@ -24,7 +24,7 @@ async def apply_device_command(session: Session, device: Device, command: dict) 
         session.refresh(device)
 
     elif device.integration == Integration.zigbee2mqtt:
-        payload = mqtt_client.build_set_payload(command)
+        payload = mqtt_client.build_set_payload(command, device)
         if payload:
             await mqtt_client.publish(f"{mqtt_client.PREFIX}/{device.device_id}/set", payload)
         if "state" in command:

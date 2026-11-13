@@ -1,6 +1,7 @@
 """Tests for MQTT state application logic."""
 import asyncio
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,6 +10,7 @@ from sqlmodel import Session, select
 from app.devices.models import Device, DeviceType, Integration
 from app.devices import mqtt as mqtt_module
 from app.devices.mqtt import _apply_state, build_set_payload, get_zigbee_bulbs
+from app.devices.zigbee_color import pct_to_mireds
 
 
 @pytest.fixture(name="z2m_sensor")
@@ -377,6 +379,38 @@ class TestBuildSetPayload:
 
     def test_empty_command_yields_empty_payload(self):
         assert build_set_payload({}) == {}
+
+    # Zigbee has no settable colour mode — a bare White/Colour toggle used to
+    # produce an empty payload, so the bulb never switched until a slider moved.
+
+    def test_switch_to_white_resends_last_color_temp(self):
+        current = SimpleNamespace(color_temp=0, color_rgb="#ff0000")
+        assert build_set_payload({"color_mode": "white"}, current) == {"color_temp": 556}
+
+    def test_switch_to_white_without_known_temp_uses_default(self):
+        current = SimpleNamespace(color_temp=None, color_rgb=None)
+        assert build_set_payload({"color_mode": "white"}, current) == {"color_temp": pct_to_mireds(50)}
+
+    def test_switch_to_colour_resends_last_hue_without_touching_brightness(self):
+        current = SimpleNamespace(color_temp=50, color_rgb="#00007f")  # dim blue
+        assert build_set_payload({"color_mode": "colour"}, current) == {
+            "color": {"hue": 240, "saturation": 100},
+        }
+
+    def test_switch_to_colour_without_known_colour_uses_default(self):
+        current = SimpleNamespace(color_temp=None, color_rgb=None)
+        assert build_set_payload({"color_mode": "colour"}, current) == {
+            "color": {"hue": 0, "saturation": 0},
+        }
+
+    def test_mode_switch_keeps_other_fields(self):
+        current = SimpleNamespace(color_temp=100, color_rgb=None)
+        payload = build_set_payload({"color_mode": "white", "state": True}, current)
+        assert payload == {"state": "ON", "color_temp": 153}
+
+    def test_explicit_color_temp_wins_over_stored_value(self):
+        current = SimpleNamespace(color_temp=0, color_rgb=None)
+        assert build_set_payload({"color_mode": "white", "color_temp": 100}, current) == {"color_temp": 153}
 
 
 class _FakeMessage:
