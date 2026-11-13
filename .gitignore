@@ -7,3 +7,6 @@ home_auto.db
 tinytuya.json
 snapshot.json
 firetv.adbkey*
+
+# Claude Code personal settings (per-developer permissions, local paths)
+.claude/settings.local.json
