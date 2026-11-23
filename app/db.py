@@ -86,6 +86,14 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN window_open INTEGER",
             "ALTER TABLE climatesample ADD COLUMN co2 INTEGER",
             "ALTER TABLE climatesample ADD COLUMN pm25 INTEGER",
+            "ALTER TABLE climatedailysummary ADD COLUMN co2_sum REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE climatedailysummary ADD COLUMN co2_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE climatedailysummary ADD COLUMN co2_min REAL",
+            "ALTER TABLE climatedailysummary ADD COLUMN co2_max REAL",
+            "ALTER TABLE climatedailysummary ADD COLUMN pm25_sum REAL NOT NULL DEFAULT 0",
+            "ALTER TABLE climatedailysummary ADD COLUMN pm25_count INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE climatedailysummary ADD COLUMN pm25_min REAL",
+            "ALTER TABLE climatedailysummary ADD COLUMN pm25_max REAL",
         ]:
             try:
                 conn.execute(text(stmt))

@@ -201,8 +201,8 @@ class ClimateSample(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     temperature: Optional[float] = None
     humidity: Optional[float] = None
-    co2: Optional[int] = None    # air quality sensors only — not rolled up into ClimateDailySummary
-    pm25: Optional[int] = None   # air quality sensors only — not rolled up into ClimateDailySummary
+    co2: Optional[int] = None    # air quality sensors only
+    pm25: Optional[int] = None   # air quality sensors only
 
 
 class AcSample(SQLModel, table=True):
@@ -259,6 +259,14 @@ class ClimateDailySummary(SQLModel, table=True):
     humidity_count: int = 0
     humidity_min: Optional[float] = None
     humidity_max: Optional[float] = None
+    co2_sum: float = 0.0             # air quality sensors only — zero counts for plain temp/humidity sensors
+    co2_count: int = 0
+    co2_min: Optional[float] = None
+    co2_max: Optional[float] = None
+    pm25_sum: float = 0.0
+    pm25_count: int = 0
+    pm25_min: Optional[float] = None
+    pm25_max: Optional[float] = None
 
 
 class AcDailySummary(SQLModel, table=True):

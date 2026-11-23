@@ -562,7 +562,8 @@ async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Q
 
 @router.get("/{device_id}/climate-chart/daily")
 async def climate_chart_daily(device_id: int, session: SessionDep, days: int = Query(default=90, ge=1, le=730)):
-    """Daily mean/min/max temperature+humidity, rolled up from raw ClimateSample
+    """Daily mean/min/max temperature+humidity (and CO₂/PM2.5 for air quality
+    sensors — null means for days with none), rolled up from raw ClimateSample
     rows once they age past the 7-day retention that /climate-chart/data reads
     from (services/history_rollup.py). Kept indefinitely, so this is the only
     place a sensor's history beyond 7 days is visible."""
@@ -580,6 +581,12 @@ async def climate_chart_daily(device_id: int, session: SessionDep, days: int = Q
         "humidity_mean": [round(r.humidity_sum / r.humidity_count, 2) if r.humidity_count else None for r in rows],
         "humidity_min": [r.humidity_min for r in rows],
         "humidity_max": [r.humidity_max for r in rows],
+        "co2_mean": [round(r.co2_sum / r.co2_count) if r.co2_count else None for r in rows],
+        "co2_min": [r.co2_min for r in rows],
+        "co2_max": [r.co2_max for r in rows],
+        "pm25_mean": [round(r.pm25_sum / r.pm25_count, 1) if r.pm25_count else None for r in rows],
+        "pm25_min": [r.pm25_min for r in rows],
+        "pm25_max": [r.pm25_max for r in rows],
     }
 
 

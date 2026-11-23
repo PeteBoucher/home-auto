@@ -7,6 +7,10 @@ them up like any Zigbee temp/humidity sensor. Name/room are only taken from
 the hub at registration; after that the dashboard's own rename is the source
 of truth and isn't overwritten.
 
+An unreachable sensor still gets the hub's last-known readings stored (the
+card shows them under its Offline badge, same as a quiet Zigbee sensor), but
+no ClimateSample is recorded from them — they're stale, not a new reading.
+
 The hub itself only refreshes a sensor's readings every few minutes (its
 `lastSeen`), so a ClimateSample is recorded only when that advances —
 polling every 60s would otherwise write the same held value repeatedly.
@@ -55,8 +59,8 @@ async def poll_dirigera_devices() -> None:
                 log.info("Registered DIRIGERA sensor %r (%s)", reading["name"], reading["hub_id"])
 
             device.online = reading["online"]
-            if reading["online"]:
-                for field in _READING_FIELDS:
+            for field in _READING_FIELDS:
+                if reading[field] is not None:
                     setattr(device, field, reading[field])
             session.add(device)
             session.flush()
