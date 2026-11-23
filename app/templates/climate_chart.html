@@ -57,10 +57,22 @@
     <canvas id="temp-daily-chart"></canvas>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm p-5">
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
     <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">Humidity — daily mean, min–max band (%)</p>
     <canvas id="humid-daily-chart"></canvas>
   </div>
+  {% if device.co2 is not none or device.pm25 is not none %}
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">CO₂ — daily mean, min–max band (ppm)</p>
+    <canvas id="co2-daily-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">PM2.5 — daily mean, min–max band (µg/m³)</p>
+    <canvas id="pm25-daily-chart"></canvas>
+  </div>
+  {% endif %}
 </div>
 
 <script src="/static/chart.umd.min.js"></script>
@@ -79,7 +91,7 @@
     },
   ];
   {% if device.co2 is not none or device.pm25 is not none %}
-  // Air quality sensors only — no daily rollup for these yet, so 7d is the limit.
+  // Air quality sensors only.
   SERIES.push(
     {
       id: 'co2-chart', key: 'co2', label: 'CO₂', color: '#8B5CF6', unit: 'ppm',
@@ -254,6 +266,17 @@
     });
   }
 
+  const DAILY_SERIES = [
+    { id: 'temp-daily-chart', key: 'temp', label: 'Temperature', color: '#F59E0B', unit: '°C' },
+    { id: 'humid-daily-chart', key: 'humidity', label: 'Humidity', color: '#3B82F6', unit: '%' },
+  ];
+  {% if device.co2 is not none or device.pm25 is not none %}
+  DAILY_SERIES.push(
+    { id: 'co2-daily-chart', key: 'co2', label: 'CO₂', color: '#8B5CF6', unit: 'ppm' },
+    { id: 'pm25-daily-chart', key: 'pm25', label: 'PM2.5', color: '#64748B', unit: 'µg/m³' },
+  );
+  {% endif %}
+
   async function loadDaily(days) {
     [30, 90, 365].forEach(d => {
       const btn = document.getElementById('daily-btn-' + d);
@@ -265,7 +288,7 @@
     const resp = await fetch('/devices/{{ device.id }}/climate-chart/daily?days=' + days);
     const data = await resp.json();
 
-    ['temp-daily-chart', 'humid-daily-chart'].forEach((id, idx) => {
+    DAILY_SERIES.map(s => s.id).forEach((id, idx) => {
       if (data.dates.length === 0) {
         const canvas = document.getElementById(id);
         const ctx = canvas.getContext('2d');
@@ -281,17 +304,13 @@
 
     const dpts = key => data.dates.map((d, i) => ({ x: new Date(d), y: data[key][i] }));
 
-    if (charts['temp-daily-chart']) charts['temp-daily-chart'].destroy();
-    charts['temp-daily-chart'] = makeBandChart(
-      'temp-daily-chart', 'Temperature', '#F59E0B', '°C',
-      dpts('temp_mean'), dpts('temp_min'), dpts('temp_max'),
-    );
-
-    if (charts['humid-daily-chart']) charts['humid-daily-chart'].destroy();
-    charts['humid-daily-chart'] = makeBandChart(
-      'humid-daily-chart', 'Humidity', '#3B82F6', '%',
-      dpts('humidity_mean'), dpts('humidity_min'), dpts('humidity_max'),
-    );
+    DAILY_SERIES.forEach(({ id, key, label, color, unit }) => {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = makeBandChart(
+        id, label, color, unit,
+        dpts(key + '_mean'), dpts(key + '_min'), dpts(key + '_max'),
+      );
+    });
   }
 
   let refreshTimer = null;

@@ -32,6 +32,31 @@ class TestRollupClimateSamples:
         assert summary.humidity_min == 50.0
         assert summary.humidity_max == 54.0
 
+    def test_co2_and_pm25_rolled_up_alongside_temperature(self, session, z2m_sensor):
+        now = datetime.utcnow()
+        old_day = now - timedelta(days=10)
+        session.add(ClimateSample(device_id=z2m_sensor.id, temperature=20.0, co2=500, pm25=3, timestamp=old_day))
+        session.add(ClimateSample(device_id=z2m_sensor.id, temperature=22.0, co2=900, pm25=7, timestamp=old_day + timedelta(hours=1)))
+        session.add(ClimateSample(device_id=z2m_sensor.id, temperature=21.0, timestamp=old_day + timedelta(hours=2)))  # no AQ reading
+        session.commit()
+
+        rollup_climate_samples(session, now=now)
+
+        summary = session.exec(select(ClimateDailySummary)).one()
+        assert summary.temp_count == 3
+        assert (summary.co2_count, summary.co2_sum, summary.co2_min, summary.co2_max) == (2, 1400.0, 500, 900)
+        assert (summary.pm25_count, summary.pm25_sum, summary.pm25_min, summary.pm25_max) == (2, 10.0, 3, 7)
+
+    def test_plain_sensor_leaves_air_quality_empty(self, session, z2m_sensor):
+        now = datetime.utcnow()
+        session.add(ClimateSample(device_id=z2m_sensor.id, temperature=20.0, timestamp=now - timedelta(days=10)))
+        session.commit()
+
+        rollup_climate_samples(session, now=now)
+
+        summary = session.exec(select(ClimateDailySummary)).one()
+        assert (summary.co2_count, summary.co2_min, summary.pm25_count) == (0, None, 0)
+
     def test_recent_samples_within_retention_are_untouched(self, session, z2m_sensor):
         now = datetime.utcnow()
         session.add(ClimateSample(device_id=z2m_sensor.id, temperature=21.0, timestamp=now - timedelta(hours=1)))

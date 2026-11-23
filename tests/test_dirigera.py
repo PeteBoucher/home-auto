@@ -1,13 +1,13 @@
 """Tests for the IKEA DIRIGERA hub client + air quality sensor poller."""
 import asyncio
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlmodel import select
 
 from app.devices import dirigera
-from app.devices.models import ClimateSample, Device, DeviceType, Integration
+from app.devices.models import ClimateDailySummary, ClimateSample, Device, DeviceType, Integration
 from app.services import automation_engine, dirigera_poller
 
 
@@ -131,6 +131,15 @@ class TestPoller:
         assert device.co2 == 575
         assert len(session.exec(select(ClimateSample)).all()) == 1
 
+    def test_registered_while_unreachable_still_shows_last_known_readings(self, engine, session):
+        triggers = _poll(engine, [_hub_record(isReachable=False)])
+
+        device = session.exec(select(Device)).one()
+        assert device.online is False
+        assert (device.sensor_temperature, device.co2, device.pm25) == (20.5, 575, 3)
+        assert session.exec(select(ClimateSample)).all() == []  # stale, not a new reading
+        assert triggers.await_args.args[1]["online"] is False
+
     def test_not_configured_is_a_noop(self, engine, session, monkeypatch):
         monkeypatch.delenv("DIRIGERA_TOKEN")
         with patch("app.services.dirigera_poller.dirigera_client.get_environment_sensors",
@@ -189,7 +198,32 @@ class TestUi:
         assert data["pm25"] == [5]
 
     def test_chart_page_has_air_quality_panels(self, client, aq_sensor):
-        assert 'id="co2-chart"' in client.get(f"/devices/{aq_sensor.id}/climate-chart").text
+        html = client.get(f"/devices/{aq_sensor.id}/climate-chart").text
+        assert 'id="co2-chart"' in html
+        assert 'id="co2-daily-chart"' in html and 'id="pm25-daily-chart"' in html
+
+    def test_plain_sensor_chart_page_has_no_air_quality_panels(self, client, z2m_sensor):
+        assert "co2-daily-chart" not in client.get(f"/devices/{z2m_sensor.id}/climate-chart").text
+
+    def test_daily_endpoint_includes_co2_and_pm25(self, client, session, aq_sensor):
+        day = (date.today() - timedelta(days=10)).isoformat()
+        session.add(ClimateDailySummary(
+            device_id=aq_sensor.id, date=day, temp_sum=41.0, temp_count=2,
+            co2_sum=1300.0, co2_count=2, co2_min=500.0, co2_max=800.0,
+            pm25_sum=9.0, pm25_count=2, pm25_min=3.0, pm25_max=6.0,
+        ))
+        session.commit()
+        data = client.get(f"/devices/{aq_sensor.id}/climate-chart/daily").json()
+        assert data["co2_mean"] == [650]
+        assert (data["co2_min"], data["co2_max"]) == ([500.0], [800.0])
+        assert data["pm25_mean"] == [4.5]
+
+    def test_daily_endpoint_plain_sensor_has_null_air_quality(self, client, session, z2m_sensor):
+        session.add(ClimateDailySummary(device_id=z2m_sensor.id, date=(date.today() - timedelta(days=10)).isoformat(),
+                                        temp_sum=20.0, temp_count=1))
+        session.commit()
+        data = client.get(f"/devices/{z2m_sensor.id}/climate-chart/daily").json()
+        assert data["co2_mean"] == [None] and data["pm25_mean"] == [None]
 
     def test_included_in_climate_widget_room_line(self, client, session, aq_sensor):
         session.add(ClimateSample(device_id=aq_sensor.id, temperature=20.5, humidity=68,

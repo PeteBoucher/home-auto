@@ -503,6 +503,8 @@ class TestClimateChart:
         assert resp.json() == {
             "dates": [], "temp_mean": [], "temp_min": [], "temp_max": [],
             "humidity_mean": [], "humidity_min": [], "humidity_max": [],
+            "co2_mean": [], "co2_min": [], "co2_max": [],
+            "pm25_mean": [], "pm25_min": [], "pm25_max": [],
         }
 
     def test_daily_returns_rows_within_window_with_computed_mean(self, client, z2m_sensor, session):

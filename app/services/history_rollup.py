@@ -61,7 +61,7 @@ def _rollup(session: Session, sample_cls, summary_cls, metrics: list[tuple[str, 
 def rollup_climate_samples(session: Session, now: datetime | None = None) -> None:
     n = _rollup(
         session, ClimateSample, ClimateDailySummary,
-        [("temperature", "temp"), ("humidity", "humidity")],
+        [("temperature", "temp"), ("humidity", "humidity"), ("co2", "co2"), ("pm25", "pm25")],
         now or datetime.utcnow(),
     )
     if n:
