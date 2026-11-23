@@ -36,6 +36,27 @@
       <p class="text-xs text-gray-400 mt-0.5">Humidity</p>
     </div>
   </div>
+  {% if device.co2 is not none or device.pm25 is not none %}
+  {# Bands: CO₂ <800 fresh, <1200 stuffy, else ventilate. PM2.5 vs the WHO 24h guideline (15) / EU limit-ish (35). #}
+  {% set co2_cls = 'text-gray-300' if device.co2 is none else 'text-green-600' if device.co2 < 800 else 'text-amber-500' if device.co2 < 1200 else 'text-red-500' %}
+  {% set pm_cls = 'text-gray-300' if device.pm25 is none else 'text-green-600' if device.pm25 <= 15 else 'text-amber-500' if device.pm25 <= 35 else 'text-red-500' %}
+  <div class="flex items-center justify-around -mt-2 pb-1">
+    <div class="text-center">
+      <p class="text-xl font-semibold {{ co2_cls }}">{% if device.co2 is not none %}{{ device.co2 }}{% else %}—{% endif %}</p>
+      <p class="text-xs text-gray-400 mt-0.5">CO₂ ppm</p>
+    </div>
+    <div class="w-px h-10 bg-gray-100"></div>
+    <div class="text-center">
+      <p class="text-xl font-semibold {{ pm_cls }}">{% if device.pm25 is not none %}{{ device.pm25 }}{% else %}—{% endif %}</p>
+      <p class="text-xs text-gray-400 mt-0.5">PM2.5 µg/m³</p>
+    </div>
+  </div>
+  {% if device.window_open %}
+  <div class="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5 -mt-2">
+    <i class="bi bi-wind"></i> Window open
+  </div>
+  {% endif %}
+  {% endif %}
   <div class="flex items-center justify-between -mt-1">
     <a href="/devices/{{ device.id }}/climate-chart"
        class="text-xs text-blue-400 hover:text-blue-600 transition-colors">

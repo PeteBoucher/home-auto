@@ -81,6 +81,11 @@ def init_db() -> None:
             "ALTER TABLE device ADD COLUMN climate_widget_resume_at TEXT",
             "ALTER TABLE device ADD COLUMN climate_combine_outdoor INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE device ADD COLUMN display_outdoor_combined INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE device ADD COLUMN co2 INTEGER",
+            "ALTER TABLE device ADD COLUMN pm25 INTEGER",
+            "ALTER TABLE device ADD COLUMN window_open INTEGER",
+            "ALTER TABLE climatesample ADD COLUMN co2 INTEGER",
+            "ALTER TABLE climatesample ADD COLUMN pm25 INTEGER",
         ]:
             try:
                 conn.execute(text(stmt))
