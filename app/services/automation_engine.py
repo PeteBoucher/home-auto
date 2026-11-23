@@ -189,7 +189,7 @@ def _eval_condition(field: str, operator: str, trigger_value: str, state: dict, 
             if other is None:
                 return False
             return abs(float(raw) - float(other)) <= float(trigger_value)
-        if field in ("state", "online", "raining"):
+        if field in ("state", "online", "raining", "window_open"):
             expected = trigger_value.lower() in ("true", "on", "1")
             actual = bool(raw)
             if operator == "eq":

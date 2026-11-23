@@ -30,6 +30,18 @@
     <canvas id="humid-chart"></canvas>
   </div>
 
+  {% if device.co2 is not none or device.pm25 is not none %}
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">CO₂ (ppm)</p>
+    <canvas id="co2-chart"></canvas>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5 mb-8">
+    <p class="text-xs text-gray-400 font-medium mb-3 uppercase tracking-wide">PM2.5 (µg/m³)</p>
+    <canvas id="pm25-chart"></canvas>
+  </div>
+  {% endif %}
+
   <h2 class="text-sm font-semibold text-gray-600 mb-3">Daily history</h2>
   <div class="flex gap-2 mb-4">
     {% for d, label in [(30, "30d"), (90, "90d"), (365, "1y")] %}
@@ -66,6 +78,19 @@
       yAxis: { suggestedMin: 0, suggestedMax: 100, ticks: { precision: 0 } },
     },
   ];
+  {% if device.co2 is not none or device.pm25 is not none %}
+  // Air quality sensors only — no daily rollup for these yet, so 7d is the limit.
+  SERIES.push(
+    {
+      id: 'co2-chart', key: 'co2', label: 'CO₂', color: '#8B5CF6', unit: 'ppm',
+      yAxis: { suggestedMin: 400, suggestedMax: 1200, ticks: { precision: 0 } },
+    },
+    {
+      id: 'pm25-chart', key: 'pm25', label: 'PM2.5', color: '#64748B', unit: 'µg/m³',
+      yAxis: { suggestedMin: 0, suggestedMax: 25, ticks: { precision: 0 } },
+    },
+  );
+  {% endif %}
 
   // Target range (this sensor's own "heat on"/"heat off" automation
   // thresholds, cached on the device — null for a sensor with no such pair).
@@ -160,7 +185,7 @@
     const data = await resp.json();
 
     if (data.timestamps.length === 0) {
-      ['temp-chart', 'humid-chart'].forEach(id => {
+      SERIES.map(s => s.id).forEach(id => {
         const canvas = document.getElementById(id);
         const ctx = canvas.getContext('2d');
         canvas.height = 60;

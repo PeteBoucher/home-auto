@@ -89,6 +89,9 @@
           <option value="outdoor_temp" {% if is_edit and auto.trigger_field == 'outdoor_temp' %}selected{% endif %}>Temperature — outdoor (°C)</option>
           <option value="sensor_temperature" {% if is_edit and auto.trigger_field == 'sensor_temperature' %}selected{% endif %}>Temperature — sensor (°C)</option>
           <option value="humidity" {% if is_edit and auto.trigger_field == 'humidity' %}selected{% endif %}>Humidity — sensor (%)</option>
+          <option value="co2" {% if is_edit and auto.trigger_field == 'co2' %}selected{% endif %}>CO₂ — air quality (ppm)</option>
+          <option value="pm25" {% if is_edit and auto.trigger_field == 'pm25' %}selected{% endif %}>PM2.5 — air quality (µg/m³)</option>
+          <option value="window_open" {% if is_edit and auto.trigger_field == 'window_open' %}selected{% endif %}>Window open — air quality</option>
           <option value="online" {% if is_edit and auto.trigger_field == 'online' %}selected{% endif %}>Online/Offline</option>
           <option value="media_state" {% if is_edit and auto.trigger_field == 'media_state' %}selected{% endif %}>Media state (Fire TV)</option>
           <option value="app_id" {% if is_edit and auto.trigger_field == 'app_id' %}selected{% endif %}>App ID (Fire TV)</option>
@@ -125,6 +128,12 @@
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
             <option value="true" {% if tv == 'true' %}selected{% endif %}>On / Online</option>
             <option value="false" {% if tv == 'false' %}selected{% endif %}>Off / Offline</option>
+          </select>
+        {% elif tf == 'window_open' %}
+          <select name="trigger_value"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="true" {% if tv == 'true' %}selected{% endif %}>Open</option>
+            <option value="false" {% if tv == 'false' %}selected{% endif %}>Closed</option>
           </select>
         {% elif tf == 'media_state' %}
           <select name="trigger_value"

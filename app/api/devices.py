@@ -555,6 +555,8 @@ async def climate_chart_data(device_id: int, session: SessionDep, hours: int = Q
         "timestamps": [s.timestamp.isoformat() for s in samples],
         "temperature": [s.temperature for s in samples],
         "humidity": [s.humidity for s in samples],
+        "co2": [s.co2 for s in samples],
+        "pm25": [s.pm25 for s in samples],
     }
 
 

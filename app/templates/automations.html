@@ -58,6 +58,11 @@ function updateTriggerValueInput() {
       <option value="true" ${currentValue === 'true' ? 'selected' : ''}>On / Online</option>
       <option value="false" ${currentValue === 'false' ? 'selected' : ''}>Off / Offline</option>
     </select>`;
+  } else if (field === 'window_open') {
+    container.innerHTML = `<select name="trigger_value" class="${cls}">
+      <option value="true" ${currentValue === 'true' ? 'selected' : ''}>Open</option>
+      <option value="false" ${currentValue === 'false' ? 'selected' : ''}>Closed</option>
+    </select>`;
   } else if (field === 'media_state') {
     const states = ['playing', 'paused', 'idle', 'standby', 'off'];
     const opts = states.map(s => `<option value="${s}" ${currentValue === s ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');

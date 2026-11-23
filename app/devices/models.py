@@ -27,6 +27,7 @@ class Integration(str, Enum):
     hon = "hon"
     zigbee2mqtt = "zigbee2mqtt"
     firetv = "firetv"
+    dirigera = "dirigera"  # IKEA DIRIGERA hub local API — e.g. the ALPSTUGA air quality monitor
 
 
 class Device(SQLModel, table=True):
@@ -68,6 +69,9 @@ class Device(SQLModel, table=True):
     sensor_temperature: Optional[float] = None  # sensors: ambient °C
     humidity: Optional[float] = None            # sensors: relative humidity %
     battery: Optional[int] = None               # battery-powered devices: %
+    co2: Optional[int] = None                   # air quality sensors: CO₂ ppm
+    pm25: Optional[int] = None                  # air quality sensors: PM2.5 µg/m³
+    window_open: Optional[bool] = None          # air quality sensors: hub's own "window open" inference
     temp_range_low: Optional[float] = None      # sensors: cached "lt" threshold from this sensor's own
     temp_range_high: Optional[float] = None     # device_state automations on sensor_temperature (the "heat
     # on"/"heat off" pair) — refreshed on every reading, purely a display label alongside time_in_range below.
@@ -197,6 +201,8 @@ class ClimateSample(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     temperature: Optional[float] = None
     humidity: Optional[float] = None
+    co2: Optional[int] = None    # air quality sensors only — not rolled up into ClimateDailySummary
+    pm25: Optional[int] = None   # air quality sensors only — not rolled up into ClimateDailySummary
 
 
 class AcSample(SQLModel, table=True):
